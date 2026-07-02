@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.db
+.pytest_cache/
+
+# Ortam değişkenleri — anahtarlar asla commit edilmez
+.env
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+
+# Veri dosyaları (büyük CSV'ler repoya girmez)
+data/*.csv
+data/scripts/*.csv
+
+# IDE / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
