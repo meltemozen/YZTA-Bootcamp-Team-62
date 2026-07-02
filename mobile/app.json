@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Voltaic",
+    "slug": "voltaic",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0b0f1a",
+    "splash": {
+      "backgroundColor": "#0b0f1a"
+    },
+    "android": {
+      "package": "com.team62.voltaic",
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0f1a"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.team62.voltaic"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "Voltaic — Çatı-GES Enerji Asistanı"
+    },
+    "extra": {
+      "apiUrl": "http://192.168.1.100:8000"
+    },
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}
