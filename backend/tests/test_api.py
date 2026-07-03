@@ -1,7 +1,7 @@
-"""API duman testleri — kayıt → plan → asistan (fallback) → rapor akışı.
+"""API smoke tests — register → plan → assistant (fallback) → report flow.
 
-Gemini anahtarı gerektirmez; hava tool'u ağ yoksa sentetik profile düşer,
-akış her ortamda çalışır.
+Requires no Gemini key; the weather tool falls back to a synthetic profile when
+offline, so the flow works in every environment.
 """
 
 import os
@@ -18,73 +18,73 @@ config.DB_PATH = os.environ["VOLTAIC_DB"]
 
 from app.main import app  # noqa: E402
 
-istemci = TestClient(app)
+client = TestClient(app)
 
-PROFIL = {
-    "kullanici_tipi": "ev", "il": "İzmir", "enlem": 38.42, "boylam": 27.14,
-    "panel_kw": 5.0, "batarya_kwh": 0, "batarya_guc_kw": 0,
-    "fatura_kwh_aylik": 300, "tarife_tipi": "uc_zamanli",
-    "cihazlar": [{"ad": "Çamaşır makinesi", "kwh": 1.0, "sure_saat": 2,
-                  "en_erken": 8, "en_gec": 23}],
+PROFILE = {
+    "user_type": "home", "city": "İzmir", "lat": 38.42, "lon": 27.14,
+    "panel_kw": 5.0, "battery_kwh": 0, "battery_power_kw": 0,
+    "monthly_bill_kwh": 300, "tariff_type": "three_zone",
+    "devices": [{"name": "Çamaşır makinesi", "kwh": 1.0, "duration_h": 2,
+                 "earliest": 8, "latest": 23}],
 }
 
 
-def _kayit() -> int:
-    yanit = istemci.post("/api/kayit", json={"profil": PROFIL})
-    assert yanit.status_code == 200
-    return yanit.json()["kullanici_id"]
+def _register() -> int:
+    resp = client.post("/api/register", json={"profile": PROFILE})
+    assert resp.status_code == 200
+    return resp.json()["user_id"]
 
 
-def test_saglik():
-    yanit = istemci.get("/api/saglik")
-    assert yanit.status_code == 200
-    assert yanit.json()["agent"] == "fallback"
+def test_health():
+    resp = client.get("/api/health")
+    assert resp.status_code == 200
+    assert resp.json()["agent"] == "fallback"
 
 
-def test_uctan_uca_akis():
-    kid = _kayit()
+def test_end_to_end_flow():
+    uid = _register()
 
-    # Günlük plan
-    plan = istemci.get(f"/api/plan/{kid}?gun=yarin")
+    # Daily plan
+    plan = client.get(f"/api/plan/{uid}?day=tomorrow")
     assert plan.status_code == 200
-    govde = plan.json()
-    assert govde["kalemler"], "Plan en az bir kalem içermeli"
-    assert govde["toplam_tasarruf_tl_max"] >= govde["toplam_tasarruf_tl_min"]
+    body = plan.json()
+    assert body["items"], "Plan must contain at least one item"
+    assert body["total_saving_tl_max"] >= body["total_saving_tl_min"]
 
-    # Asistan (fallback modunda gerekçeli Türkçe yanıt)
-    yanit = istemci.post("/api/asistan", json={"kullanici_id": kid,
-                                               "mesaj": "yarın için plan yapar mısın"})
-    assert yanit.status_code == 200
-    govde = yanit.json()
-    assert govde["agent_modu"] == "fallback"
-    assert "TL" in govde["yanit"]
-    assert govde["arac_cagrilari"], "Şeffaflık: çağrılan tool listesi dolu olmalı"
+    # Assistant (reasoned Turkish reply in fallback mode)
+    resp = client.post("/api/assistant", json={"user_id": uid,
+                                               "message": "yarın için plan yapar mısın"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["agent_mode"] == "fallback"
+    assert "TL" in body["reply"]
+    assert body["tool_calls"], "Transparency: the list of called tools must be non-empty"
 
-    # İtiraz → hafızaya yazılır, plan değişir
-    itiraz = istemci.post("/api/asistan", json={"kullanici_id": kid,
-                                                "mesaj": "öğlen 12den önce evde yokum"})
-    assert itiraz.status_code == 200
-    assert any("hafiza_yaz" in c for c in itiraz.json()["arac_cagrilari"])
+    # Objection → written to memory, plan changes
+    objection = client.post("/api/assistant", json={"user_id": uid,
+                                                    "message": "öğlen 12den önce evde yokum"})
+    assert objection.status_code == 200
+    assert any("write_memory" in c for c in objection.json()["tool_calls"])
 
-    # Geri bildirim + rapor
-    tarih = plan.json()["tarih"]
-    gb = istemci.post("/api/geribildirim", json={
-        "kullanici_id": kid, "tarih": tarih,
-        "kalem_ad": "Çamaşır makinesi", "uygulandi": True})
-    assert gb.status_code == 200
+    # Feedback + report
+    date_ = plan.json()["date"]
+    fb = client.post("/api/feedback", json={
+        "user_id": uid, "date": date_,
+        "item_name": "Çamaşır makinesi", "applied": True})
+    assert fb.status_code == 200
 
-    ay = tarih[:7]
-    rapor = istemci.get(f"/api/rapor/{kid}?ay={ay}")
-    assert rapor.status_code == 200
-    assert rapor.json()["uygulanan_oneri"] >= 1
+    month = date_[:7]
+    report = client.get(f"/api/report/{uid}?month={month}")
+    assert report.status_code == 200
+    assert report.json()["applied_count"] >= 1
 
-    # Proaktif bildirimler
-    bildirim = istemci.get(f"/api/bildirimler/{kid}")
-    assert bildirim.status_code == 200
-    assert isinstance(bildirim.json()["bildirimler"], list)
+    # Proactive notifications
+    notif = client.get(f"/api/notifications/{uid}")
+    assert notif.status_code == 200
+    assert isinstance(notif.json()["notifications"], list)
 
 
-def test_cihaz_referans():
-    yanit = istemci.get("/api/cihaz-referans")
-    assert yanit.status_code == 200
-    assert len(yanit.json()["cihazlar"]) >= 5
+def test_device_catalog():
+    resp = client.get("/api/device-catalog")
+    assert resp.status_code == 200
+    assert len(resp.json()["devices"]) >= 5

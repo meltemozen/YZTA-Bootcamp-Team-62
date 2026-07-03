@@ -23,7 +23,7 @@ etkiler → tüm tasarruflar **aralık** olarak gösterilir (±%25).
 `P = (GHI/1000) × kWp × PR(0.80) × sıcaklık_düzeltmesi`, hücre sıcaklığı
 `T_hücre = T_hava + 0.03 × GHI`, 25°C üstü her derece %0.4 kayıp.
 
-**v1 (VB ekibi):** LightGBM; eğitim verisi `data/scripts/pvgis_cek.py`.
+**v1 (VB ekibi):** LightGBM; eğitim verisi `data/scripts/pvgis_fetch.py`.
 Değerlendirme: son yıl hold-out, nMAE; v0 baseline'ı geçemeyen model üretime alınmaz.
 
 ## 3. Tüketim modeli ve kalibrasyon
@@ -57,7 +57,7 @@ Sonuçlar:
 - Üç zamanlı aboneye özel nüans: gündüz **satış** fiyatı gece **alış**
   fiyatından yüksek olabilir → optimizer o kullanıcıya "gündüz sat, esnek yükü
   geceye al" diyebilir. Bu bir hata değil, mevzuatın doğru ekonomisidir
-  (test: `test_uc_zamanli_cihaz_asla_puanta_girmez`).
+  (test: `test_three_zone_device_never_enters_peak`).
 - Mesken çatı GES mahsuplaşma sınırı **10 kW** — uygulama aşan kullanıcıyı
   proaktif uyarır.
 

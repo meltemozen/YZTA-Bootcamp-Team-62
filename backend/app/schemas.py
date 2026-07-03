@@ -1,10 +1,10 @@
-"""Model–Agent KONTRATI.
+"""Model–Agent CONTRACT.
 
-Bu dosya iki ekibin (YZ + VB) buluşma noktasıdır ve KİLİTLİDİR.
-Tool imzaları ve veri tipleri burada tanımlanır; değişiklik ancak iki
-ekibin ortak kararı + docs/CONTRACT.md güncellemesiyle yapılır.
+This file is the meeting point of the two teams (AI + Data Science) and is
+LOCKED. Tool signatures and data types are defined here; changes require a
+joint decision by both teams plus an update to docs/CONTRACT.md.
 
-Tüm saatlik diziler 24 elemanlıdır ve yerel saat 00:00-23:00'ı temsil eder.
+All hourly arrays have 24 elements and represent local time 00:00-23:00.
 """
 
 from datetime import date
@@ -14,145 +14,145 @@ from pydantic import BaseModel, Field
 
 
 # --------------------------------------------------------------------------
-# Kullanıcı ve hane profili
+# User and household profile
 # --------------------------------------------------------------------------
 
-class Cihaz(BaseModel):
-    """Esnek yük: kullanıcının zamanını kaydırabileceği cihaz."""
-    ad: str
-    kwh: float = Field(gt=0, description="Bir çalıştırmanın toplam tüketimi (kWh)")
-    sure_saat: int = Field(ge=1, le=12, description="Çalışma süresi (saat, yukarı yuvarlanmış)")
-    en_erken: int = Field(default=0, ge=0, le=23)
-    en_gec: int = Field(default=23, ge=0, le=23, description="En geç BİTİŞ saati")
+class Device(BaseModel):
+    """Flexible load: a device whose run time the user can shift."""
+    name: str
+    kwh: float = Field(gt=0, description="Total consumption of one run (kWh)")
+    duration_h: int = Field(ge=1, le=12, description="Run duration (hours, rounded up)")
+    earliest: int = Field(default=0, ge=0, le=23)
+    latest: int = Field(default=23, ge=0, le=23, description="Latest FINISH hour")
 
 
-class HaneProfili(BaseModel):
-    kullanici_tipi: Literal["ev", "isyeri"] = "ev"
-    il: str = "İzmir"
-    enlem: float = 38.42
-    boylam: float = 27.14
-    panel_kw: float = Field(gt=0, description="Kurulu panel gücü (kWp)")
-    batarya_kwh: float = Field(default=0, ge=0, description="Batarya kapasitesi, 0 = yok")
-    batarya_guc_kw: float = Field(default=0, ge=0, description="Maks şarj/deşarj gücü")
-    fatura_kwh_aylik: float = Field(gt=0, description="Son fatura aylık tüketimi — kalibrasyon girdisi")
-    tarife_tipi: Literal["tek_zamanli", "uc_zamanli"] = "tek_zamanli"
-    cihazlar: list[Cihaz] = []
-    mesai_baslangic: int = Field(default=8, ge=0, le=23, description="İşyeri için")
-    mesai_bitis: int = Field(default=19, ge=0, le=23)
+class HouseholdProfile(BaseModel):
+    user_type: Literal["home", "business"] = "home"
+    city: str = "İzmir"
+    lat: float = 38.42
+    lon: float = 27.14
+    panel_kw: float = Field(gt=0, description="Installed panel power (kWp)")
+    battery_kwh: float = Field(default=0, ge=0, description="Battery capacity, 0 = none")
+    battery_power_kw: float = Field(default=0, ge=0, description="Max charge/discharge power")
+    monthly_bill_kwh: float = Field(gt=0, description="Last bill monthly consumption — calibration input")
+    tariff_type: Literal["single", "three_zone"] = "single"
+    devices: list[Device] = []
+    work_start: int = Field(default=8, ge=0, le=23, description="For businesses")
+    work_end: int = Field(default=19, ge=0, le=23)
 
 
 # --------------------------------------------------------------------------
-# Tool girdi/çıktıları (kontratın kendisi)
+# Tool inputs/outputs (the contract itself)
 # --------------------------------------------------------------------------
 
-class HavaDurumu(BaseModel):
-    """hava_getir(konum, tarih) çıktısı — Open-Meteo canlı verisi."""
-    tarih: date
-    isinim_wm2: list[float] = Field(description="Saatlik global yatay ışınım (W/m²), 24 eleman")
-    sicaklik_c: list[float] = Field(description="Saatlik sıcaklık (°C), 24 eleman")
-    bulutluluk_yuzde: list[float] = Field(description="Saatlik bulutluluk (%), 24 eleman")
+class Weather(BaseModel):
+    """Output of get_weather(location, date) — Open-Meteo live data."""
+    date: date
+    irradiance_wm2: list[float] = Field(description="Hourly global horizontal irradiance (W/m²), 24 elements")
+    temp_c: list[float] = Field(description="Hourly temperature (°C), 24 elements")
+    cloud_pct: list[float] = Field(description="Hourly cloud cover (%), 24 elements")
 
 
-class UretimTahmini(BaseModel):
-    """uretim_tahmin(hava, panel_kw) çıktısı."""
-    tarih: date
-    saatlik_kwh: list[float] = Field(description="24 eleman")
-    toplam_kwh: float
-    model_surumu: str = Field(description="'v0-fiziksel' | 'v1-lightgbm' — VB ekibi v1'i takar")
+class ProductionForecast(BaseModel):
+    """Output of forecast_production(weather, panel_kw)."""
+    date: date
+    hourly_kwh: list[float] = Field(description="24 elements")
+    total_kwh: float
+    model_version: str = Field(description="'v0-physical' | 'v1-lightgbm' — DS team swaps in v1")
 
 
-class TuketimTahmini(BaseModel):
-    """tuketim_tahmin(hane_profili) çıktısı — baz yük, esnek cihazlar HARİÇ."""
-    tarih: date
-    saatlik_kwh: list[float]
-    toplam_kwh: float
-    model_surumu: str = "v0-profil"
+class ConsumptionForecast(BaseModel):
+    """Output of forecast_consumption(household_profile) — base load, EXCLUDING flexible devices."""
+    date: date
+    hourly_kwh: list[float]
+    total_kwh: float
+    model_version: str = "v0-profile"
 
 
-class TarifeBilgisi(BaseModel):
-    """tarife_getir(tarih, kullanici_tipi, tarife_tipi, aylik_kwh) çıktısı.
+class Tariff(BaseModel):
+    """Output of get_tariff(date, user_type, tariff_type, monthly_kwh).
 
-    Kontrat v1.1: SAATLİK mahsuplaşma (RG 02.04.2026) gereği satış fiyatı
-    saat bazına indirildi; tek zamanlı kademeli tarife için aylik_kwh girdisi
-    eklendi (marjinal kademe fiyatı seçimi).
+    Contract v1.1: hourly net-metering (Official Gazette 02.04.2026) required
+    the sell price to be broken down per hour; the monthly_kwh input was added
+    for tiered single-rate tariffs (marginal tier price selection).
     """
-    tarih: date
-    saatlik_fiyat: list[float] = Field(description="Alış fiyatı TL/kWh (vergiler dahil), 24 eleman")
-    saatlik_satis_fiyat: list[float] = Field(
-        description="Saatlik mahsupta o saatin satış fiyatı TL/kWh (≈ alış × 0.70), 24 eleman")
-    mahsup_satis_fiyati: float = Field(description="Günlük ortalama satış fiyatı (geriye uyum/özet)")
-    dilim_adi: list[str] = Field(description="Her saat için 'gunduz'|'puant'|'gece'|'tek'")
+    date: date
+    hourly_price: list[float] = Field(description="Buy price TL/kWh (incl. taxes), 24 elements")
+    hourly_sell_price: list[float] = Field(
+        description="Hourly net-metering sell price TL/kWh (≈ buy × 0.70), 24 elements")
+    avg_sell_price: float = Field(description="Daily average sell price (back-compat/summary)")
+    band: list[str] = Field(description="Per hour: 'day'|'peak'|'night'|'flat'")
 
 
-class PlanKalemi(BaseModel):
-    tur: Literal["cihaz", "batarya_sarj", "batarya_desarj"]
-    ad: str
-    baslangic_saat: int
-    bitis_saat: int
-    tasarruf_tl_min: float = Field(description="Belirsizlik aralığı alt sınır")
-    tasarruf_tl_max: float
-    gerekce_kodu: str = Field(description="'gunes_bol'|'puant_kacinma'|'gece_ucuz'|'mahsup_avantaji'")
+class PlanItem(BaseModel):
+    type: Literal["device", "battery_charge", "battery_discharge"]
+    name: str
+    start_h: int
+    end_h: int
+    saving_tl_min: float = Field(description="Uncertainty range lower bound")
+    saving_tl_max: float
+    reason_code: str = Field(description="'solar_surplus'|'avoid_peak'|'cheap_night'|'netmeter_edge'")
 
 
-class GunlukPlan(BaseModel):
-    """optimize(...) çıktısı — agent'ın kullanıcıya çevireceği ham plan."""
-    tarih: date
-    kalemler: list[PlanKalemi]
-    toplam_tasarruf_tl_min: float
-    toplam_tasarruf_tl_max: float
-    co2_tasarruf_kg: float
-    oz_tuketim_orani: float = Field(description="Üretimin evde tüketilen payı 0-1")
-    ozet_veri: dict = Field(default_factory=dict, description="Grafik için: uretim/tuketim/fiyat dizileri")
+class DailyPlan(BaseModel):
+    """Output of optimize(...) — the raw plan the agent turns into user text."""
+    date: date
+    items: list[PlanItem]
+    total_saving_tl_min: float
+    total_saving_tl_max: float
+    co2_saved_kg: float
+    self_consumption_ratio: float = Field(description="Share of production consumed at home 0-1")
+    chart_data: dict = Field(default_factory=dict, description="For charts: production/consumption/price arrays")
 
 
-class KullaniciTercihi(BaseModel):
-    """hafiza_oku/hafiza_yaz birimi."""
-    metin: str = Field(description="Örn: 'Salı günleri öğlen evde kimse yok'")
-    kaynak: Literal["kullanici", "cikarim"] = "kullanici"
-    tarih: Optional[str] = None
+class UserPreference(BaseModel):
+    """read_memory/write_memory unit."""
+    text: str = Field(description="e.g. 'Nobody is home on Tuesday afternoons'")
+    source: Literal["user", "inferred"] = "user"
+    date: Optional[str] = None
 
 
 # --------------------------------------------------------------------------
-# API sözleşmeleri (mobil ↔ backend)
+# API contracts (mobile ↔ backend)
 # --------------------------------------------------------------------------
 
-class KayitIstek(BaseModel):
-    profil: HaneProfili
+class RegisterRequest(BaseModel):
+    profile: HouseholdProfile
 
 
-class KayitYanit(BaseModel):
-    kullanici_id: int
-    mesaj: str
+class RegisterResponse(BaseModel):
+    user_id: int
+    message: str
 
 
-class AsistanIstek(BaseModel):
-    kullanici_id: int
-    mesaj: str = Field(description="Serbest Türkçe: soru, itiraz veya tercih")
+class AssistantRequest(BaseModel):
+    user_id: int
+    message: str = Field(description="Free Turkish: question, objection or preference")
 
 
-class AsistanYanit(BaseModel):
-    yanit: str = Field(description="Agent'ın gerekçeli Türkçe cevabı")
-    plan: Optional[GunlukPlan] = None
-    agent_modu: Literal["gemini", "fallback"]
-    arac_cagrilari: list[str] = Field(default_factory=list, description="Şeffaflık: hangi tool'lar çağrıldı")
+class AssistantResponse(BaseModel):
+    reply: str = Field(description="The agent's reasoned Turkish answer")
+    plan: Optional[DailyPlan] = None
+    agent_mode: Literal["gemini", "fallback"]
+    tool_calls: list[str] = Field(default_factory=list, description="Transparency: which tools were called")
 
 
-class GeriBildirim(BaseModel):
-    kullanici_id: int
-    tarih: date
-    kalem_ad: str
-    uygulandi: bool
+class Feedback(BaseModel):
+    user_id: int
+    date: date
+    item_name: str
+    applied: bool
 
 
-class AylikRapor(BaseModel):
-    ay: str
-    uygulanan_oneri: int
-    toplam_oneri: int
-    gerceklesen_tasarruf_tl_min: float
-    gerceklesen_tasarruf_tl_max: float
-    kacirilan_tasarruf_tl: float = Field(description="Karşı-olgusal: uygulanmayan önerilerin değeri")
-    co2_tasarruf_kg: float
-    # Çevresel/sosyal etki eşdeğerleri (SDG 7 & 13 anlatısı)
-    araba_km_esdegeri: float = Field(default=0, description="Önlenen CO2'nin araç km karşılığı")
-    agac_ay_esdegeri: float = Field(default=0, description="Kaç ağacın aylık emilimine denk")
-    aciklama: str
+class MonthlyReport(BaseModel):
+    month: str
+    applied_count: int
+    total_count: int
+    realized_saving_tl_min: float
+    realized_saving_tl_max: float
+    missed_saving_tl: float = Field(description="Counterfactual: value of unapplied suggestions")
+    co2_saved_kg: float
+    # Environmental/social impact equivalents (SDG 7 & 13 narrative)
+    car_km_equiv: float = Field(default=0, description="Car-km equivalent of avoided CO2")
+    tree_month_equiv: float = Field(default=0, description="How many trees' monthly absorption")
+    note: str

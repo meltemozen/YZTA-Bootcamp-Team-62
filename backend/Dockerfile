@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-# Veritabanı volume ile kalıcı tutulur: -v voltaic-data:/data
+# Database kept persistent via a volume: -v voltaic-data:/data
 ENV VOLTAIC_DB=/data/voltaic.db
 RUN mkdir -p /data
 

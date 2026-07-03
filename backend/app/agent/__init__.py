@@ -1,3 +1,3 @@
-from .orkestrator import asistan_cevapla
+from .orchestrator import assistant_reply
 
-__all__ = ["asistan_cevapla"]
+__all__ = ["assistant_reply"]

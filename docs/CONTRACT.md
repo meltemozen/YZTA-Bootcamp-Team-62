@@ -6,40 +6,53 @@
 >
 > **Kilitlenme tarihi:** 2 Temmuz 2026 (Sprint 1)
 > **v1.1 (3 Temmuz 2026):** Saatlik mahsuplaşma mevzuatı (RG 02.04.2026) gereği
-> `TarifeBilgisi`ye `saatlik_satis_fiyat[24]` eklendi; kademeli tarife için
-> `tarife_getir` opsiyonel `aylik_kwh` parametresi aldı. Geriye uyumlu.
+> `Tariff`e `hourly_sell_price[24]` eklendi; kademeli tarife için `get_tariff`
+> opsiyonel `monthly_kwh` parametresi aldı. Geriye uyumlu.
+> **v1.2 (3 Temmuz 2026):** Kod tabanı İngilizce'ye taşındı (dosya/metot/alan
+> adları). Tool imzaları ve JSON alanları İngilizce; anlam ve şekil AYNI.
+> Kullanıcıya görünen mobil metinler Türkçe kaldı.
 
 ## Tool listesi
 
 Agent bu tool'ları **kendi kararıyla, kendi sırasıyla** çağırır — elle pipeline yoktur.
-(Gemini function-calling döngüsü: `backend/app/agent/orkestrator.py`)
+(Gemini function-calling döngüsü: `backend/app/agent/orchestrator.py`)
 
 | Tool | Girdi | Çıktı | Sahibi | Durum |
 |---|---|---|---|---|
-| `hava_getir(konum, tarih)` | koordinat, gün | saatlik ışınım/sıcaklık/bulutluluk (`HavaDurumu`) | YZ | ✅ canlı (Open-Meteo) |
-| `uretim_tahmin(hava, panel_kw)` | hava + panel kapasitesi | saatlik kWh üretim (`UretimTahmini`) | **VB** | ✅ v0-fiziksel — VB, v1-LightGBM ile değiştirir |
-| `tuketim_tahmin(hane_profili, tarih)` | profil + gün | saatlik kWh baz talep (`TuketimTahmini`) | **VB** | ✅ v0-profil — VB, v1 ile değiştirir |
-| `tarife_getir(tarih, tip)` | gün, kullanıcı/tarife tipi | saatlik fiyat + **mahsup satış fiyatı** (`TarifeBilgisi`) | YZ | ✅ EPDK sabit tablo |
-| `optimize(üretim, tüketim, tarife, profil, yasak_saatler)` | hepsi | cihaz/batarya planı (`GunlukPlan`) | DS+YZ | ✅ deterministik motor |
-| `hafiza_oku(kullanici_id)` / `hafiza_yaz(kullanici_id, metin)` | kullanıcı id | tercih + geçmiş | YZ | ✅ SQLite (Chroma genişletilebilir) |
+| `get_weather(lat, lon, date)` | koordinat, gün | saatlik ışınım/sıcaklık/bulutluluk (`Weather`) | YZ | ✅ canlı (Open-Meteo) |
+| `forecast_production(weather, panel_kw)` | hava + panel kapasitesi | saatlik kWh üretim (`ProductionForecast`) | **VB** | ✅ v0-physical — VB, v1-lightgbm ile değiştirir |
+| `forecast_consumption(profile, date)` | profil + gün | saatlik kWh baz talep (`ConsumptionForecast`) | **VB** | ✅ v0-profile — VB, v1 ile değiştirir |
+| `get_tariff(date, user_type, tariff_type, monthly_kwh)` | gün, kullanıcı/tarife tipi | saatlik fiyat + **mahsup satış fiyatı** (`Tariff`) | YZ | ✅ EPDK sabit tablo |
+| `optimize(production, consumption, tariff, profile, blocked_hours)` | hepsi | cihaz/batarya planı (`DailyPlan`) | DS+YZ | ✅ deterministik motor |
+| `read_memory(user_id)` / `write_memory(user_id, text)` | kullanıcı id | tercih + geçmiş | YZ | ✅ SQLite (Chroma genişletilebilir) |
+
+## Enum değerleri (İngilizce, v1.2)
+
+- `user_type`: `home` | `business`
+- `tariff_type`: `single` | `three_zone`
+- `PlanItem.type`: `device` | `battery_charge` | `battery_discharge`
+- `reason_code`: `solar_surplus` | `avoid_peak` | `cheap_night` | `netmeter_edge`
+- `band`: `day` | `peak` | `night` | `flat`
+- `agent_mode`: `gemini` | `fallback`
 
 ## Orijinal dokümandan farklar (gerekçeli)
 
-1. **`tarife_getir` artık `mahsup_satis_fiyati` da döner.** Mahsuplaşma "projenin
-   farklılaştırıcı çekirdeği" olduğu halde orijinal kontratta yoktu. Satış fiyatının
-   alış fiyatından düşük olması, optimizasyonun "öz tüketim > satış" önceliğinin
-   ekonomik temelidir.
-2. **`tuketim_tahmin` profil içinde `fatura_kwh_aylik` alır.** Türkiye'de kullanıcı
-   saatlik tüketimini bilemez; fatura kalibrasyonu tek gerçekçi girdidir (bkz. METHOD.md).
-3. **`optimize` `yasak_saatler` parametresi aldı.** Hafızadaki tercihlerin
+1. **`get_tariff` artık `avg_sell_price` + `hourly_sell_price` de döner.**
+   Mahsuplaşma "projenin farklılaştırıcı çekirdeği" olduğu halde orijinal
+   kontratta yoktu. Satış fiyatının alış fiyatından düşük olması, optimizasyonun
+   "öz tüketim > satış" önceliğinin ekonomik temelidir.
+2. **`forecast_consumption` profil içinde `monthly_bill_kwh` alır.** Türkiye'de
+   kullanıcı saatlik tüketimini bilemez; fatura kalibrasyonu tek gerçekçi
+   girdidir (bkz. METHOD.md).
+3. **`optimize` `blocked_hours` parametresi aldı.** Hafızadaki tercihlerin
    ("öğlen evde yokum") plana bağlanma noktası budur.
 
 ## VB ekibi için değiştirme sözleşmesi
 
-`uretim_tahmin` ve `tuketim_tahmin` fonksiyonlarının **imzası ve çıktı şeması
-sabittir**. LightGBM modelleri hazır olduğunda yalnızca fonksiyon gövdesi değişir,
-`model_surumu` alanı `v1-lightgbm` yapılır. Agent, API ve mobil uygulama hiçbir
-değişiklik gerektirmez — kontratın amacı tam olarak budur.
+`forecast_production` ve `forecast_consumption` fonksiyonlarının **imzası ve
+çıktı şeması sabittir**. LightGBM modelleri hazır olduğunda yalnızca fonksiyon
+gövdesi değişir, `model_version` alanı `v1-lightgbm` yapılır. Agent, API ve
+mobil uygulama hiçbir değişiklik gerektirmez — kontratın amacı tam olarak budur.
 
 ## Veri tipleri
 

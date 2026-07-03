@@ -1,179 +1,176 @@
-"""optimize tool'u — cihaz + batarya günlük planı.
+"""optimize tool — device + battery daily plan.
 
-Karar mantığı (deterministik ve açıklanabilir — jüri sorusu "neden 13:00?"
-buradan cevaplanır):
+Decision logic (deterministic and explainable — the jury question "why 13:00?"
+is answered here):
 
-* Her saat için net yük = baz tüketim − üretim.
-* İthal edilen kWh alış fiyatından, ihraç edilen kWh MAHSUP satış
-  fiyatından değerlenir. Satış fiyatı < alış fiyatı olduğundan üretimi
-  evde tüketmek (öz tüketim) her zaman şebekeye satmaktan kârlıdır —
-  Türkiye mahsuplaşma mevzuatının plana yansıdığı yer burasıdır.
-* Cihazlar büyükten küçüğe, uygun saat pencereleri içinde toplam maliyeti
-  en aza indiren başlangıç saatine yerleştirilir (kapsamlı tarama, 24 saat).
-* Tasarruf, "alışkanlık saati" referansına göre hesaplanır (ev: 19:00
-  akşam piki, işyeri: mesai başı) ve tüketim belirsizliği nedeniyle
-  ARALIK olarak raporlanır.
-* Batarya: üretim fazlası saatlerde şarj, en pahalı ithalat saatlerinde
-  deşarj (%90 tur verimi).
+* Net load per hour = base consumption − production.
+* Imported kWh is valued at the buy price, exported kWh at the NET-METERING
+  sell price. Since sell < buy, consuming production at home (self-consumption)
+  is always more profitable than exporting — this is where Turkey's
+  net-metering regulation shows up in the plan.
+* Devices are placed largest-first, at the start hour that minimizes total cost
+  within their allowed window (exhaustive 24-hour scan).
+* Saving is computed against a "habit hour" reference (home: 19:00 evening peak,
+  business: work start) and reported as a RANGE due to consumption uncertainty.
+* Battery: charge during production-surplus hours, discharge during the most
+  expensive import hours (90% round-trip efficiency).
 """
 
-from datetime import date
-
 from .. import config
-from ..schemas import (Cihaz, GunlukPlan, HaneProfili, PlanKalemi,
-                       TarifeBilgisi, TuketimTahmini, UretimTahmini)
+from ..schemas import (ConsumptionForecast, DailyPlan, Device, HouseholdProfile,
+                       PlanItem, ProductionForecast, Tariff)
 
 
-def _profil_maliyeti(net: list[float], fiyat: list[float], satis: list[float]) -> float:
-    """Günlük TL maliyet — SAATLİK mahsuplaşma (RG 02.04.2026):
-    her saat ayrı netleşir; ithalat o saatin alış, ihracat o saatin satış
-    fiyatından değerlenir."""
-    toplam = 0.0
-    for saat in range(24):
-        if net[saat] > 0:
-            toplam += net[saat] * fiyat[saat]
+def _profile_cost(net: list[float], price: list[float], sell: list[float]) -> float:
+    """Daily TL cost — HOURLY net-metering (Official Gazette 02.04.2026):
+    each hour nets separately; imports valued at that hour's buy price, exports
+    at that hour's sell price."""
+    total = 0.0
+    for hour in range(24):
+        if net[hour] > 0:
+            total += net[hour] * price[hour]
         else:
-            toplam -= (-net[saat]) * satis[saat]
-    return toplam
+            total -= (-net[hour]) * sell[hour]
+    return total
 
 
-def _cihaz_ekle(net: list[float], cihaz: Cihaz, baslangic: int) -> list[float]:
-    yeni = net[:]
-    saatlik = cihaz.kwh / cihaz.sure_saat
-    for i in range(cihaz.sure_saat):
-        yeni[(baslangic + i) % 24] += saatlik
-    return yeni
+def _add_device(net: list[float], device: Device, start: int) -> list[float]:
+    new = net[:]
+    per_hour = device.kwh / device.duration_h
+    for i in range(device.duration_h):
+        new[(start + i) % 24] += per_hour
+    return new
 
 
-def _uygun_baslangiclar(cihaz: Cihaz, yasak: set[int]) -> list[int]:
-    adaylar = []
+def _valid_starts(device: Device, blocked: set[int]) -> list[int]:
+    candidates = []
     for s in range(24):
-        bitis = s + cihaz.sure_saat - 1
-        if s < cihaz.en_erken or bitis > cihaz.en_gec:
+        end = s + device.duration_h - 1
+        if s < device.earliest or end > device.latest:
             continue
-        if any((s + i) % 24 in yasak for i in range(cihaz.sure_saat)):
+        if any((s + i) % 24 in blocked for i in range(device.duration_h)):
             continue
-        adaylar.append(s)
-    return adaylar
+        candidates.append(s)
+    return candidates
 
 
-def _gerekce(baslangic: int, uretim: list[float], tuketim: list[float],
-             dilimler: list[str]) -> str:
-    if uretim[baslangic] > tuketim[baslangic]:
-        return "gunes_bol"
-    if dilimler[baslangic] == "gece":
-        return "gece_ucuz"
-    if dilimler[(baslangic + 23) % 24] == "puant" or dilimler[baslangic] != "puant":
-        return "puant_kacinma"
-    return "mahsup_avantaji"
+def _reason(start: int, production: list[float], consumption: list[float],
+            bands: list[str]) -> str:
+    if production[start] > consumption[start]:
+        return "solar_surplus"
+    if bands[start] == "night":
+        return "cheap_night"
+    if bands[(start + 23) % 24] == "peak" or bands[start] != "peak":
+        return "avoid_peak"
+    return "netmeter_edge"
 
 
-def optimize(uretim: UretimTahmini, tuketim: TuketimTahmini,
-             tarife: TarifeBilgisi, profil: HaneProfili,
-             yasak_saatler: set[int] | None = None) -> GunlukPlan:
-    yasak = yasak_saatler or set()
-    fiyat, satis = tarife.saatlik_fiyat, tarife.saatlik_satis_fiyat
-    net = [t - u for t, u in zip(tuketim.saatlik_kwh, uretim.saatlik_kwh)]
+def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
+             tariff: Tariff, profile: HouseholdProfile,
+             blocked_hours: set[int] | None = None) -> DailyPlan:
+    blocked = blocked_hours or set()
+    price, sell = tariff.hourly_price, tariff.hourly_sell_price
+    net = [c - p for c, p in zip(consumption.hourly_kwh, production.hourly_kwh)]
 
-    kalemler: list[PlanKalemi] = []
-    referans_saat = 19 if profil.kullanici_tipi == "ev" else profil.mesai_baslangic
+    items: list[PlanItem] = []
+    reference_hour = 19 if profile.user_type == "home" else profile.work_start
 
-    # --- Cihaz yerleştirme (büyük yük önce) ---
-    for cihaz in sorted(profil.cihazlar, key=lambda c: c.kwh, reverse=True):
-        adaylar = _uygun_baslangiclar(cihaz, yasak)
-        if not adaylar:
+    # --- Device placement (largest load first) ---
+    for device in sorted(profile.devices, key=lambda d: d.kwh, reverse=True):
+        candidates = _valid_starts(device, blocked)
+        if not candidates:
             continue
-        maliyetler = {s: _profil_maliyeti(_cihaz_ekle(net, cihaz, s), fiyat, satis)
-                      for s in adaylar}
-        # Maliyet eşitliğinde üretim fazlası en bol pencereyi seç: tahmin
-        # hatasına karşı en güvenli saat (öğlen tepesi) tercih edilir.
-        def _fazla(s: int) -> float:
-            return sum(max(-net[(s + i) % 24], 0.0) for i in range(cihaz.sure_saat))
-        en_iyi = min(maliyetler, key=lambda s: (round(maliyetler[s], 2), -_fazla(s)))
+        costs = {s: _profile_cost(_add_device(net, device, s), price, sell)
+                 for s in candidates}
+        # On a cost tie, pick the window with the most production surplus: the
+        # safest hour against forecast error (the midday peak).
+        def _surplus(s: int) -> float:
+            return sum(max(-net[(s + i) % 24], 0.0) for i in range(device.duration_h))
+        best = min(costs, key=lambda s: (round(costs[s], 2), -_surplus(s)))
 
-        ref = referans_saat if referans_saat in maliyetler else max(maliyetler, key=maliyetler.get)
-        tasarruf = max(maliyetler[ref] - maliyetler[en_iyi], 0.0)
-        b = config.TASARRUF_BELIRSIZLIK
+        ref = reference_hour if reference_hour in costs else max(costs, key=costs.get)
+        saving = max(costs[ref] - costs[best], 0.0)
+        u = config.SAVING_UNCERTAINTY
 
-        kalemler.append(PlanKalemi(
-            tur="cihaz", ad=cihaz.ad,
-            baslangic_saat=en_iyi,
-            bitis_saat=(en_iyi + cihaz.sure_saat) % 24,
-            tasarruf_tl_min=round(tasarruf * (1 - b), 2),
-            tasarruf_tl_max=round(tasarruf * (1 + b), 2),
-            gerekce_kodu=_gerekce(en_iyi, uretim.saatlik_kwh, tuketim.saatlik_kwh,
-                                  tarife.dilim_adi),
+        items.append(PlanItem(
+            type="device", name=device.name,
+            start_h=best,
+            end_h=(best + device.duration_h) % 24,
+            saving_tl_min=round(saving * (1 - u), 2),
+            saving_tl_max=round(saving * (1 + u), 2),
+            reason_code=_reason(best, production.hourly_kwh, consumption.hourly_kwh,
+                                tariff.band),
         ))
-        net = _cihaz_ekle(net, cihaz, en_iyi)
+        net = _add_device(net, device, best)
 
-    # --- Batarya: fazla üretimle şarj, pahalı saatte deşarj ---
-    if profil.batarya_kwh > 0 and profil.batarya_guc_kw > 0:
-        verim = 0.90
-        sarj_saatleri = sorted((s for s in range(24) if net[s] < 0),
-                               key=lambda s: net[s])  # en çok fazla olan önce
-        depolanan, sarj_pencere = 0.0, []
-        for s in sarj_saatleri:
-            if depolanan >= profil.batarya_kwh * 0.95:
+    # --- Battery: charge with surplus production, discharge at expensive hours ---
+    if profile.battery_kwh > 0 and profile.battery_power_kw > 0:
+        efficiency = 0.90
+        charge_hours = sorted((h for h in range(24) if net[h] < 0),
+                              key=lambda h: net[h])  # most surplus first
+        stored, charge_window = 0.0, []
+        for h in charge_hours:
+            if stored >= profile.battery_kwh * 0.95:
                 break
-            alinan = min(-net[s], profil.batarya_guc_kw,
-                         profil.batarya_kwh * 0.95 - depolanan)
-            if alinan <= 0.05:
+            taken = min(-net[h], profile.battery_power_kw,
+                        profile.battery_kwh * 0.95 - stored)
+            if taken <= 0.05:
                 continue
-            net[s] += alinan
-            depolanan += alinan
-            sarj_pencere.append(s)
+            net[h] += taken
+            stored += taken
+            charge_window.append(h)
 
-        desarj_saatleri = sorted((s for s in range(24) if net[s] > 0),
-                                 key=lambda s: fiyat[s], reverse=True)
-        kazanc, desarj_pencere = 0.0, []
-        kullanilabilir = depolanan * verim
-        ort_satis = sum(satis) / 24
-        for s in desarj_saatleri:
-            if kullanilabilir <= 0.05:
+        discharge_hours = sorted((h for h in range(24) if net[h] > 0),
+                                 key=lambda h: price[h], reverse=True)
+        gain, discharge_window = 0.0, []
+        available = stored * efficiency
+        avg_sell = sum(sell) / 24
+        for h in discharge_hours:
+            if available <= 0.05:
                 break
-            verilen = min(net[s], profil.batarya_guc_kw, kullanilabilir)
-            net[s] -= verilen
-            kullanilabilir -= verilen
-            # Kazanç: şebekeden almaktan kurtulunan − mahsupta satılsaydı geliri
-            kazanc += verilen * fiyat[s] - (verilen / verim) * ort_satis
-            desarj_pencere.append(s)
+            given = min(net[h], profile.battery_power_kw, available)
+            net[h] -= given
+            available -= given
+            # Gain: avoided grid import − revenue if it had been sold via netting
+            gain += given * price[h] - (given / efficiency) * avg_sell
+            discharge_window.append(h)
 
-        if sarj_pencere and desarj_pencere:
-            b = config.TASARRUF_BELIRSIZLIK
-            kalemler.append(PlanKalemi(
-                tur="batarya_sarj", ad="Batarya",
-                baslangic_saat=min(sarj_pencere), bitis_saat=max(sarj_pencere) + 1,
-                tasarruf_tl_min=0, tasarruf_tl_max=0, gerekce_kodu="gunes_bol"))
-            kalemler.append(PlanKalemi(
-                tur="batarya_desarj", ad="Batarya",
-                baslangic_saat=min(desarj_pencere), bitis_saat=max(desarj_pencere) + 1,
-                tasarruf_tl_min=round(max(kazanc, 0) * (1 - b), 2),
-                tasarruf_tl_max=round(max(kazanc, 0) * (1 + b), 2),
-                gerekce_kodu="puant_kacinma"))
+        if charge_window and discharge_window:
+            u = config.SAVING_UNCERTAINTY
+            items.append(PlanItem(
+                type="battery_charge", name="Battery",
+                start_h=min(charge_window), end_h=max(charge_window) + 1,
+                saving_tl_min=0, saving_tl_max=0, reason_code="solar_surplus"))
+            items.append(PlanItem(
+                type="battery_discharge", name="Battery",
+                start_h=min(discharge_window), end_h=max(discharge_window) + 1,
+                saving_tl_min=round(max(gain, 0) * (1 - u), 2),
+                saving_tl_max=round(max(gain, 0) * (1 + u), 2),
+                reason_code="avoid_peak"))
 
-    # --- Özet metrikler ---
-    oz_tuketim = sum(min(u, u + n) if n < 0 else u
-                     for u, n in zip(uretim.saatlik_kwh, net))
-    oz_oran = round(min(oz_tuketim / uretim.toplam_kwh, 1.0), 2) if uretim.toplam_kwh > 0 else 0.0
-    co2 = round(oz_tuketim * config.CO2_KG_PER_KWH, 2)
+    # --- Summary metrics ---
+    self_consumed = sum(min(p, p + n) if n < 0 else p
+                        for p, n in zip(production.hourly_kwh, net))
+    self_ratio = round(min(self_consumed / production.total_kwh, 1.0), 2) if production.total_kwh > 0 else 0.0
+    co2 = round(self_consumed * config.CO2_KG_PER_KWH, 2)
 
-    return GunlukPlan(
-        tarih=uretim.tarih,
-        kalemler=kalemler,
-        toplam_tasarruf_tl_min=round(sum(k.tasarruf_tl_min for k in kalemler), 2),
-        toplam_tasarruf_tl_max=round(sum(k.tasarruf_tl_max for k in kalemler), 2),
-        co2_tasarruf_kg=co2,
-        oz_tuketim_orani=oz_oran,
-        ozet_veri={
-            "uretim": uretim.saatlik_kwh,
-            "tuketim": tuketim.saatlik_kwh,
-            "fiyat": tarife.saatlik_fiyat,
-            "dilim": tarife.dilim_adi,
-            # Çevresel eşdeğerler: CO2'yi somutlaştırır (ETKB EF + genel
-            # kabul görmüş eşdeğerler, kaynaklar config.py'de)
-            "cevre": {
-                "araba_km": round(co2 / config.ARABA_KG_CO2_KM, 1),
-                "agac_gun": round(co2 / (config.AGAC_KG_CO2_YIL / 365), 1),
+    return DailyPlan(
+        date=production.date,
+        items=items,
+        total_saving_tl_min=round(sum(i.saving_tl_min for i in items), 2),
+        total_saving_tl_max=round(sum(i.saving_tl_max for i in items), 2),
+        co2_saved_kg=co2,
+        self_consumption_ratio=self_ratio,
+        chart_data={
+            "production": production.hourly_kwh,
+            "consumption": consumption.hourly_kwh,
+            "price": tariff.hourly_price,
+            "band": tariff.band,
+            # Environmental equivalents: make CO2 tangible (Ministry EF + widely
+            # accepted equivalents, sources in config.py)
+            "env": {
+                "car_km": round(co2 / config.CAR_KG_CO2_KM, 1),
+                "tree_days": round(co2 / (config.TREE_KG_CO2_YEAR / 365), 1),
             },
         },
     )

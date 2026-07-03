@@ -13,13 +13,16 @@ adayları belirlenmiştir.)*
 
 ## Takım Üyeleri
 
-| İsim | Rol | Odak |
+Ekip 5 kişidir; herkes aktif geliştirici olarak katkı verir (bootcamp kuralı).
+Scrum rolleri ekip içinde dağıtılmıştır.
+
+| Rol | İsim | Odak |
 |---|---|---|
-| *(eklenecek)* | Product Owner / Developer | Agent mimarisi + kontrat (YZ-1) |
-| *(eklenecek)* | Scrum Master / Developer | Orkestrasyon + Gemini (YZ-2) |
-| *(eklenecek)* | Developer | Hafıza + arayüz (YZ-3) |
-| *(eklenecek)* | Developer | Üretim modeli + veri (VB-1) |
-| *(eklenecek)* | Developer | Tüketim modeli + optimizasyon (VB-2) |
+| Product Owner / Developer | *(eklenecek)* | Ürün vizyonu + backlog + üretim modeli (VB) |
+| Scrum Master / Developer | *(eklenecek)* | Süreç + iletişim + tüketim modeli & optimizasyon (VB) |
+| Developer | *(eklenecek)* | Agent mimarisi + model–agent kontratı + müzakere (YZ) |
+| Developer | *(eklenecek)* | Orkestrasyon + Gemini Türkçe öneri + servisler (YZ) |
+| Developer | *(eklenecek)* | Hafıza + mobil/web arayüz + tarife tool'u (YZ) |
 
 ## Ürün Açıklaması
 
@@ -63,7 +66,7 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 ## Teknik Dokümantasyon
 
 - [docs/TEKNIK.md](docs/TEKNIK.md) — mimari, kurulum, depo yapısı, kalan işler
-- [docs/CONTRACT.md](docs/CONTRACT.md) — model–agent tool kontratı (kilitli, v1.1)
+- [docs/CONTRACT.md](docs/CONTRACT.md) — model–agent tool kontratı (kilitli, v1.2)
 - [docs/METHOD.md](docs/METHOD.md) — veri doğruluğu, mevzuat kaynakları, dürüstlük ilkeleri
 - [docs/DEPLOY.md](docs/DEPLOY.md) — çalıştırma, Docker, canlıya alma, demo videosu akışı
 
@@ -74,71 +77,77 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 # Sprintler
 
-<details>
-<summary><h2>Sprint 1 — İskelet ve Kontrat (19 Haziran – 5 Temmuz)</h2></summary>
+> **Sprint yapısı hakkında not.** Planlanan iş takvimin önünde ilerledi: baseline
+> modelli **uçtan uca çalışan ürün** ve **temiz İngilizce kod tabanı** Sprint 1
+> sonunda hazır. Bu yüzden orijinal plandaki "iskelet" (S1) ve "karar zekası" (S2)
+> işleri Sprint 1 altında birleştirilip **tamamlandı** olarak raporlandı; Sprint 2
+> ve 3, geriye kalan **gerçek** işe (baseline → LightGBM model yükseltmesi,
+> değerlendirme, canlıya alma, teslim) göre yeniden yazıldı. Toplam ≈ **100 SP**
+> (S1: 45 · S2: 34 · S3: 21).
 
-**Sprint hedefi:** Uçtan uca iskelet çalışsın; model–agent kontratı kilitlensin,
-modeller baseline versin, agent tool çağırabilsin.
+<details open>
+<summary><h2>Sprint 1 — Temel, Kontrat ve Çalışan Ürün (19 Haziran – 5 Temmuz) · 45 SP · ✅ TESLİM</h2></summary>
 
-**Sprint puanı:** *(takım board'una göre eklenecek — önerilen: toplam 300 puanın 100'ü)*
+**Sprint hedefi:** Uçtan uca çalışan ürün; model–agent kontratı kilitli; baseline
+modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tabanı.
 
-### Tamamlanan işler
+| # | Görev | Ekip | SP | Durum |
+|---|---|---|---|---|
+| S1-1 | Repo, GitHub & proje altyapısı + **İngilizce refactor** (dosya/metot/alan adları) + klasör mimarisi | YZ | 5 | ✅ |
+| S1-2 | Model–Agent tool kontratını tasarla ve **KİLİTLE** (Pydantic `schemas.py` + CONTRACT.md) | Ortak | 3 | ✅ |
+| S1-3 | Veri boru hattı: PVGIS + Open-Meteo çekme/temizleme scriptleri | VB | 5 | ✅ |
+| S1-4 | Backend: FastAPI + Docker iskeleti + SQLite kalıcılık | YZ | 3 | ✅ |
+| S1-5 | 6 agent tool'u + **optimizasyon motoru** (weather, production v0, consumption v0, tariff+saatlik mahsup, optimize, memory) | VB+YZ | 8 | ✅ |
+| S1-6 | Gemini function-calling agent + kural-tabanlı fallback + **müzakere döngüsü** (itiraz → hafıza → yeniden planla) | YZ | 8 | ✅ |
+| S1-7 | Mobil + web uygulaması (Expo tek kod tabanı: onboarding, plan, asistan, rapor, ayarlar + grafik + marka) | YZ | 8 | ✅ |
+| S1-8 | Proaktif uyarılar + karşı-olgusal ay sonu raporu + CO₂/çevre katmanı + **14 test** & uçtan uca doğrulama | Ortak | 5 | ✅ |
 
-- ✅ Model–agent tool kontratı tasarlandı ve **kilitlendi** (Pydantic şemaları + CONTRACT.md)
-- ✅ FastAPI backend + Docker iskeleti; SQLite kalıcılık
-- ✅ 6 tool: canlı Open-Meteo hava, PV üretim modeli (v0 fiziksel), tüketim profili
-  (fatura kalibrasyonu), EPDK tarife (kademeli + üç zamanlı + **saatlik mahsuplaşma**),
-  optimizasyon motoru, hafıza
-- ✅ Gemini function-calling agent döngüsü + anahtarsız kural-tabanlı fallback
-- ✅ Müzakere: itiraz → hafızaya yaz → yeniden planla (canlı doğrulandı)
-- ✅ Expo mobil uygulama + web sitesi (onboarding, plan, asistan, rapor, ayarlar)
-- ✅ Marka kimliği: koyu tema, SVG logo/ikonlar, Space Grotesk + Inter
-- ✅ Mevzuat/veri doğrulaması: 2026 tarifeleri, RG 02.04.2026 saatlik mahsup,
-  ETKB emisyon faktörü — kaynaklar METHOD.md'de
-- ✅ 14 birim/entegrasyon testi + headless tarayıcıyla uçtan uca duman testi
-- ✅ Karşı-olgusal ay sonu raporu + proaktif uyarılar + CO₂/çevresel eşdeğerler
+**Tamamlanan (kanıt):** yukarıdaki ekran görüntüleri Sprint 1 sonundaki çalışan
+üründen (gerçek Open-Meteo verisi, İzmir). Mevzuat/veri doğrulaması METHOD.md'de
+(2026 tarifeleri, RG 02.04.2026 saatlik mahsup, ETKB emisyon faktörü).
 
-### Ürün durumu
-
-Yukarıdaki ekran görüntüleri Sprint 1 sonunda çalışan üründen alınmıştır
-(gerçek Open-Meteo verisi, İzmir).
-
-### Daily Scrum
-
-*(Takım WhatsApp/Slack özetleri buraya veya `docs/sprint1/daily/` klasörüne eklenecek)*
-
-### Sprint Board
-
-*(Board ekran görüntüsü eklenecek — GitHub Projects önerilir)*
-
-### Sprint Review
-
-*(Toplantı özeti eklenecek. Not: "Yarınki üretim tahmini agent üzerinden dönüyor"
-demo kriteri sağlandı — plan + asistan akışı canlı çalışıyor.)*
-
-### Sprint Retrospective
-
-*(Toplantı özeti eklenecek)*
+- **Daily Scrum:** [docs/scrum/sprint-1/daily.md](docs/scrum/sprint-1/daily.md)
+- **Sprint Board:** [docs/scrum/sprint-1/board.md](docs/scrum/sprint-1/board.md) *(ekran görüntüsü hafta sonu eklenecek)*
+- **Sprint Review:** [docs/scrum/sprint-1/review.md](docs/scrum/sprint-1/review.md)
+- **Sprint Retrospective:** [docs/scrum/sprint-1/retrospective.md](docs/scrum/sprint-1/retrospective.md)
 
 </details>
 
 <details>
-<summary><h2>Sprint 2 — Karar ve Agent Zekası (6 – 19 Temmuz)</h2></summary>
+<summary><h2>Sprint 2 — Gerçek ML & Agent Sağlamlaştırma (6 – 19 Temmuz) · 34 SP · 🔜 PLANLANDI</h2></summary>
 
-**Hedef:** LightGBM üretim modeli v1, tüketim modeli v1, EPİAŞ şekil doğrulaması,
-Gemini anahtarıyla uçtan uca agent testi, Chroma hafıza (opsiyonel).
+**Hedef:** Baseline modelleri gerçek makine öğrenmesiyle değiştir; agent'ı canlı
+Gemini anahtarıyla sağlamlaştır. Kontrat sabit — yalnız tool gövdeleri değişir.
 
-*(Sprint sonunda doldurulacak)*
+| # | Görev | Ekip | SP |
+|---|---|---|---|
+| S2-1 | LightGBM üretim modeli v1 (`production.py` gövdesi; `model_version`→`v1-lightgbm`) | VB | 8 |
+| S2-2 | LightGBM tüketim modeli v1 (`consumption.py` gövdesi) | VB | 8 |
+| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 |
+| S2-4 | Gemini anahtarıyla uçtan uca agent testi + prompt iyileştirme | YZ | 5 |
+| S2-5 | Chroma semantik hafıza (`memory.py` genişletme; imza sabit) | YZ | 5 |
+| S2-6 | Cihaz kataloğu genişletme + EV şarj senaryosu ince ayarı | YZ | 3 |
+
+**Sprint 2 demo kriteri:** "Çamaşırı 13:00'te at" önerisi v1 LightGBM üretim
+tahminiyle üretiliyor; kullanıcı itirazıyla değişiyor; hafıza tercihi hatırlıyor.
 
 </details>
 
 <details>
-<summary><h2>Sprint 3 — Farklılaştırma, Cila ve Teslim (20 Temmuz – 2 Ağustos)</h2></summary>
+<summary><h2>Sprint 3 — Değerlendirme, Canlıya Alma ve Teslim (20 Temmuz – 2 Ağustos) · 21 SP · 🔜 PLANLANDI</h2></summary>
 
-**Hedef:** Model değerlendirme raporu, canlı URL (Railway/Cloud Run), APK (EAS),
-3 dk demo videosu, teslim formu.
+**Hedef:** Modelleri değerlendir, ürünü canlıya al, teslim paketini hazırla.
 
-*(Sprint sonunda doldurulacak)*
+| # | Görev | Ekip | SP |
+|---|---|---|---|
+| S3-1 | Model doğruluk raporu (nMAE, hold-out; v0 baseline vs v1) | VB | 5 |
+| S3-2 | Canlıya alma: Railway/Cloud Run backend + EAS ile Android APK | Ortak | 5 |
+| S3-3 | EPDK güncel tarife + mahsup bedeli son teyidi (`config.py`) | Ortak | 2 |
+| S3-4 | 3 dk demo videosu + README finalize + teslim formu | Ortak | 5 |
+| S3-5 | Erişilebilirlik + son cila (UI durumları, hata ekranları) | YZ | 4 |
+
+**Teslim (2 Ağustos):** public GitHub repo, canlı URL (varsa), 3 dk YouTube videosu,
+eksiksiz teslim formu.
 
 </details>
 

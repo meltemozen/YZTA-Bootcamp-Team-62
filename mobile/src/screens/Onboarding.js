@@ -1,7 +1,7 @@
-// Onboarding: 4 adımda kurulum → 5 dakikada ilk öneri.
-// Kullanıcıdan yalnızca BİLDİĞİ şeyler istenir: ev mi işyeri mi, hangi il,
-// panel gücü, aylık fatura ve evdeki esnek cihazlar. Saatlik tüketim verisi
-// İSTENMEZ — backend fatura kalibrasyonuyla tahmin eder.
+// Onboarding: setup in 4 steps → first suggestion in 5 minutes.
+// Only asks what the user KNOWS: home or business, which city, panel power,
+// monthly bill and the flexible devices at home. Hourly consumption data is
+// NOT requested — the backend estimates it from the bill (calibration).
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
@@ -9,225 +9,225 @@ import {
   ActivityIndicator, Pressable, ScrollView, Text, TextInput, View,
 } from 'react-native';
 import { api } from '../api';
-import { uyar } from '../bildir';
-import { LogoIsareti, SozMarkasi } from '../components/Marka';
+import { alertUser } from '../notify';
+import { LogoMark, Wordmark } from '../components/Brand';
 import {
-  birincilButon, birincilButonMetin, bosluk, font, kart, renk, yazi,
+  primaryButton, primaryButtonText, spacing, font, card, colors, text,
 } from '../theme';
 
-const ILLER = [
-  { ad: 'İstanbul', enlem: 41.01, boylam: 28.98 },
-  { ad: 'Ankara', enlem: 39.93, boylam: 32.86 },
-  { ad: 'İzmir', enlem: 38.42, boylam: 27.14 },
-  { ad: 'Antalya', enlem: 36.9, boylam: 30.7 },
-  { ad: 'Bursa', enlem: 40.19, boylam: 29.06 },
-  { ad: 'Adana', enlem: 37.0, boylam: 35.32 },
-  { ad: 'Konya', enlem: 37.87, boylam: 32.48 },
-  { ad: 'Gaziantep', enlem: 37.07, boylam: 37.38 },
-  { ad: 'Kayseri', enlem: 38.72, boylam: 35.49 },
-  { ad: 'Şanlıurfa', enlem: 37.16, boylam: 38.79 },
-  { ad: 'Denizli', enlem: 37.78, boylam: 29.09 },
-  { ad: 'Muğla', enlem: 37.22, boylam: 28.36 },
+const CITIES = [
+  { name: 'İstanbul', lat: 41.01, lon: 28.98 },
+  { name: 'Ankara', lat: 39.93, lon: 32.86 },
+  { name: 'İzmir', lat: 38.42, lon: 27.14 },
+  { name: 'Antalya', lat: 36.9, lon: 30.7 },
+  { name: 'Bursa', lat: 40.19, lon: 29.06 },
+  { name: 'Adana', lat: 37.0, lon: 35.32 },
+  { name: 'Konya', lat: 37.87, lon: 32.48 },
+  { name: 'Gaziantep', lat: 37.07, lon: 37.38 },
+  { name: 'Kayseri', lat: 38.72, lon: 35.49 },
+  { name: 'Şanlıurfa', lat: 37.16, lon: 38.79 },
+  { name: 'Denizli', lat: 37.78, lon: 29.09 },
+  { name: 'Muğla', lat: 37.22, lon: 28.36 },
 ];
 
-function Secenek({ etiket, secili, onPress, kucuk }) {
+function Option({ label, selected, onPress, small }) {
   return (
     <Pressable
       onPress={onPress}
       style={{
-        paddingVertical: kucuk ? 9 : 14,
+        paddingVertical: small ? 9 : 14,
         paddingHorizontal: 15,
         borderRadius: 12,
         borderWidth: 1.5,
-        borderColor: secili ? renk.amber : renk.kenar,
-        backgroundColor: secili ? renk.amberYumusak : renk.girdi,
-        marginBottom: bosluk.s,
-        marginRight: bosluk.s,
+        borderColor: selected ? colors.amber : colors.border,
+        backgroundColor: selected ? colors.amberSoft : colors.input,
+        marginBottom: spacing.s,
+        marginRight: spacing.s,
       }}
     >
       <Text style={{
-        fontFamily: secili ? font.kalin : font.govde,
+        fontFamily: selected ? font.semibold : font.body,
         fontSize: 14,
-        color: secili ? renk.amber : renk.murekkepIkincil,
+        color: selected ? colors.amber : colors.inkSecondary,
       }}>
-        {etiket}
+        {label}
       </Text>
     </Pressable>
   );
 }
 
-function SayiGirisi({ etiket, deger, setDeger, birim }) {
+function NumberInput({ label, value, setValue, unit }) {
   return (
-    <View style={{ marginBottom: bosluk.m }}>
-      <Text style={[yazi.govde, { marginBottom: 6 }]}>{etiket}</Text>
+    <View style={{ marginBottom: spacing.m }}>
+      <Text style={[text.body, { marginBottom: 6 }]}>{label}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TextInput
-          value={deger}
-          onChangeText={setDeger}
+          value={value}
+          onChangeText={setValue}
           keyboardType="numeric"
           style={{
-            borderWidth: 1, borderColor: renk.kenar, borderRadius: 12,
+            borderWidth: 1, borderColor: colors.border, borderRadius: 12,
             padding: 13, fontSize: 17, width: 120,
-            backgroundColor: renk.girdi, color: renk.murekkep,
-            fontFamily: font.rakam,
+            backgroundColor: colors.input, color: colors.ink,
+            fontFamily: font.number,
           }}
         />
-        <Text style={[yazi.govde, { marginLeft: bosluk.s }]}>{birim}</Text>
+        <Text style={[text.body, { marginLeft: spacing.s }]}>{unit}</Text>
       </View>
     </View>
   );
 }
 
-export default function Onboarding({ tamamlandi }) {
-  const [adim, setAdim] = useState(0);
-  const [tip, setTip] = useState('ev');
-  const [il, setIl] = useState(ILLER[2]);
+export default function Onboarding({ onDone }) {
+  const [step, setStep] = useState(0);
+  const [type, setType] = useState('home');
+  const [city, setCity] = useState(CITIES[2]);
   const [panelKw, setPanelKw] = useState('5');
-  const [bataryaKwh, setBataryaKwh] = useState('0');
-  const [fatura, setFatura] = useState('300');
-  const [tarife, setTarife] = useState('tek_zamanli');
-  const [katalog, setKatalog] = useState([]);
-  const [secilenCihazlar, setSecilenCihazlar] = useState([]);
-  const [gonderiliyor, setGonderiliyor] = useState(false);
+  const [batteryKwh, setBatteryKwh] = useState('0');
+  const [bill, setBill] = useState('300');
+  const [tariff, setTariff] = useState('single');
+  const [catalog, setCatalog] = useState([]);
+  const [selectedDevices, setSelectedDevices] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.cihazReferans().then((d) => setKatalog(d.cihazlar)).catch(() => {});
+    api.deviceCatalog().then((d) => setCatalog(d.devices)).catch(() => {});
   }, []);
 
-  const cihazSecili = (ad) => secilenCihazlar.some((c) => c.ad === ad);
-  const cihazDegistir = (cihaz) =>
-    setSecilenCihazlar((mevcut) =>
-      cihazSecili(cihaz.ad) ? mevcut.filter((c) => c.ad !== cihaz.ad) : [...mevcut, cihaz]
+  const isDeviceSelected = (name) => selectedDevices.some((d) => d.name === name);
+  const toggleDevice = (device) =>
+    setSelectedDevices((current) =>
+      isDeviceSelected(device.name) ? current.filter((d) => d.name !== device.name) : [...current, device]
     );
 
-  const bitir = async () => {
-    setGonderiliyor(true);
+  const finish = async () => {
+    setSubmitting(true);
     try {
-      const batarya = parseFloat(bataryaKwh) || 0;
-      const yanit = await api.kayit({
-        kullanici_tipi: tip,
-        il: il.ad,
-        enlem: il.enlem,
-        boylam: il.boylam,
+      const battery = parseFloat(batteryKwh) || 0;
+      const resp = await api.register({
+        user_type: type,
+        city: city.name,
+        lat: city.lat,
+        lon: city.lon,
         panel_kw: parseFloat(panelKw) || 5,
-        batarya_kwh: batarya,
-        batarya_guc_kw: batarya > 0 ? Math.min(batarya / 2, 5) : 0,
-        fatura_kwh_aylik: parseFloat(fatura) || 300,
-        tarife_tipi: tarife,
-        cihazlar: secilenCihazlar,
+        battery_kwh: battery,
+        battery_power_kw: battery > 0 ? Math.min(battery / 2, 5) : 0,
+        monthly_bill_kwh: parseFloat(bill) || 300,
+        tariff_type: tariff,
+        devices: selectedDevices,
       });
-      await AsyncStorage.setItem('kullaniciId', String(yanit.kullanici_id));
-      tamamlandi(yanit.kullanici_id);
-    } catch (hata) {
-      uyar(
+      await AsyncStorage.setItem('userId', String(resp.user_id));
+      onDone(resp.user_id);
+    } catch (err) {
+      alertUser(
         'Bağlantı sorunu',
-        `Sunucuya ulaşılamadı. Ayarlar > API adresini kontrol edin.\n\n${hata.message}`
+        `Sunucuya ulaşılamadı. Ayarlar > API adresini kontrol edin.\n\n${err.message}`
       );
     } finally {
-      setGonderiliyor(false);
+      setSubmitting(false);
     }
   };
 
-  const adimlar = [
-    <View key="tip">
-      <Text style={[yazi.baslik, { marginBottom: bosluk.m }]}>Panelin nerede kurulu?</Text>
+  const steps = [
+    <View key="type">
+      <Text style={[text.title, { marginBottom: spacing.m }]}>Panelin nerede kurulu?</Text>
       <View style={{ flexDirection: 'row' }}>
-        <Secenek etiket="Evim" secili={tip === 'ev'} onPress={() => setTip('ev')} />
-        <Secenek etiket="İşyerim" secili={tip === 'isyeri'} onPress={() => setTip('isyeri')} />
+        <Option label="Evim" selected={type === 'home'} onPress={() => setType('home')} />
+        <Option label="İşyerim" selected={type === 'business'} onPress={() => setType('business')} />
       </View>
-      <Text style={[yazi.baslik, { marginVertical: bosluk.m }]}>Hangi ilde?</Text>
+      <Text style={[text.title, { marginVertical: spacing.m }]}>Hangi ilde?</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {ILLER.map((sehir) => (
-          <Secenek key={sehir.ad} kucuk etiket={sehir.ad}
-                   secili={il.ad === sehir.ad} onPress={() => setIl(sehir)} />
+        {CITIES.map((c) => (
+          <Option key={c.name} small label={c.name}
+                  selected={city.name === c.name} onPress={() => setCity(c)} />
         ))}
       </View>
     </View>,
 
     <View key="panel">
-      <Text style={[yazi.baslik, { marginBottom: bosluk.m }]}>Güneş sistemin</Text>
-      <SayiGirisi etiket="Panel gücü (faturanda veya sözleşmende yazar)"
-                  deger={panelKw} setDeger={setPanelKw} birim="kW" />
-      <SayiGirisi etiket="Batarya kapasitesi (yoksa 0 bırak)"
-                  deger={bataryaKwh} setDeger={setBataryaKwh} birim="kWh" />
-      <Text style={yazi.kucuk}>
+      <Text style={[text.title, { marginBottom: spacing.m }]}>Güneş sistemin</Text>
+      <NumberInput label="Panel gücü (faturanda veya sözleşmende yazar)"
+                   value={panelKw} setValue={setPanelKw} unit="kW" />
+      <NumberInput label="Batarya kapasitesi (yoksa 0 bırak)"
+                   value={batteryKwh} setValue={setBatteryKwh} unit="kWh" />
+      <Text style={text.small}>
         Bataryan olmasa da Voltaic cihazlarını güneş saatlerine planlayarak tasarruf sağlar.
       </Text>
     </View>,
 
-    <View key="fatura">
-      <Text style={[yazi.baslik, { marginBottom: bosluk.m }]}>Elektrik faturan</Text>
-      <SayiGirisi etiket="Aylık tüketimin (faturada 'kWh' yazan satır)"
-                  deger={fatura} setDeger={setFatura} birim="kWh / ay" />
-      <Text style={[yazi.govde, { marginBottom: bosluk.s }]}>Tarifen hangisi?</Text>
+    <View key="bill">
+      <Text style={[text.title, { marginBottom: spacing.m }]}>Elektrik faturan</Text>
+      <NumberInput label="Aylık tüketimin (faturada 'kWh' yazan satır)"
+                   value={bill} setValue={setBill} unit="kWh / ay" />
+      <Text style={[text.body, { marginBottom: spacing.s }]}>Tarifen hangisi?</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        <Secenek etiket="Tek zamanlı (bilmiyorum)" secili={tarife === 'tek_zamanli'}
-                 onPress={() => setTarife('tek_zamanli')} />
-        <Secenek etiket="Üç zamanlı" secili={tarife === 'uc_zamanli'}
-                 onPress={() => setTarife('uc_zamanli')} />
+        <Option label="Tek zamanlı (bilmiyorum)" selected={tariff === 'single'}
+                onPress={() => setTariff('single')} />
+        <Option label="Üç zamanlı" selected={tariff === 'three_zone'}
+                onPress={() => setTariff('three_zone')} />
       </View>
-      <Text style={yazi.kucuk}>
+      <Text style={text.small}>
         Çoğu abonelik tek zamanlıdır. Üç zamanlıda gece ucuz, 17-22 arası pahalıdır —
         emin değilsen faturanda "T1/T2/T3" satırları olup olmadığına bak.
       </Text>
     </View>,
 
-    <View key="cihaz">
-      <Text style={[yazi.baslik, { marginBottom: bosluk.s }]}>Hangi cihazların var?</Text>
-      <Text style={[yazi.govde, { marginBottom: bosluk.m }]}>
+    <View key="device">
+      <Text style={[text.title, { marginBottom: spacing.s }]}>Hangi cihazların var?</Text>
+      <Text style={[text.body, { marginBottom: spacing.m }]}>
         Zamanını kaydırabileceğin cihazları seç — Voltaic bunları en ucuz saate planlayacak.
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {katalog
-          .filter((c) => tip === 'isyeri' || !c.ad.includes('işyeri'))
-          .map((cihaz) => (
-            <Secenek key={cihaz.ad} kucuk etiket={cihaz.ad}
-                     secili={cihazSecili(cihaz.ad)} onPress={() => cihazDegistir(cihaz)} />
+        {catalog
+          .filter((c) => type === 'business' || !c.name.includes('işyeri'))
+          .map((device) => (
+            <Option key={device.name} small label={device.name}
+                    selected={isDeviceSelected(device.name)} onPress={() => toggleDevice(device)} />
           ))}
       </View>
     </View>,
   ];
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: renk.sayfa }}
-                contentContainerStyle={{ padding: bosluk.l, paddingTop: 64 }}>
-      {/* Marka hero */}
+    <ScrollView style={{ flex: 1, backgroundColor: colors.page }}
+                contentContainerStyle={{ padding: spacing.l, paddingTop: 64 }}>
+      {/* Brand hero */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-        <LogoIsareti boyut={40} />
+        <LogoMark size={40} />
         <View>
-          <SozMarkasi boyut={26} />
-          <Text style={[yazi.kucuk, { marginTop: 1 }]}>Çatındaki güneş, akıllıca yönetilsin</Text>
+          <Wordmark size={26} />
+          <Text style={[text.small, { marginTop: 1 }]}>Çatındaki güneş, akıllıca yönetilsin</Text>
         </View>
       </View>
 
-      {/* İlerleme çubuğu */}
+      {/* Progress bar */}
       <View style={{
-        height: 4, backgroundColor: renk.girdi, borderRadius: 2,
-        marginTop: bosluk.m, marginBottom: bosluk.l, overflow: 'hidden',
+        height: 4, backgroundColor: colors.input, borderRadius: 2,
+        marginTop: spacing.m, marginBottom: spacing.l, overflow: 'hidden',
       }}>
         <View style={{
-          height: 4, borderRadius: 2, backgroundColor: renk.amber,
-          width: `${((adim + 1) / adimlar.length) * 100}%`,
+          height: 4, borderRadius: 2, backgroundColor: colors.amber,
+          width: `${((step + 1) / steps.length) * 100}%`,
         }} />
       </View>
 
-      <View style={[kart, { minHeight: 320 }]}>{adimlar[adim]}</View>
+      <View style={[card, { minHeight: 320 }]}>{steps[step]}</View>
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Pressable disabled={adim === 0} onPress={() => setAdim(adim - 1)}
-                   style={{ padding: 14, opacity: adim === 0 ? 0.25 : 1 }}>
-          <Text style={[yazi.govde, { fontFamily: font.orta }]}>← Geri</Text>
+        <Pressable disabled={step === 0} onPress={() => setStep(step - 1)}
+                   style={{ padding: 14, opacity: step === 0 ? 0.25 : 1 }}>
+          <Text style={[text.body, { fontFamily: font.medium }]}>← Geri</Text>
         </Pressable>
         <Pressable
-          disabled={gonderiliyor}
-          onPress={() => (adim < adimlar.length - 1 ? setAdim(adim + 1) : bitir())}
-          style={[birincilButon, { minWidth: 150 }]}
+          disabled={submitting}
+          onPress={() => (step < steps.length - 1 ? setStep(step + 1) : finish())}
+          style={[primaryButton, { minWidth: 150 }]}
         >
-          {gonderiliyor ? (
-            <ActivityIndicator color={renk.amberUstuMurekkep} />
+          {submitting ? (
+            <ActivityIndicator color={colors.amberInk} />
           ) : (
-            <Text style={birincilButonMetin}>
-              {adim < adimlar.length - 1 ? 'Devam' : 'Başla'}
+            <Text style={primaryButtonText}>
+              {step < steps.length - 1 ? 'Devam' : 'Başla'}
             </Text>
           )}
         </Pressable>

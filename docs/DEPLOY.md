@@ -13,7 +13,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - API dokümanı: http://localhost:8000/docs (FastAPI otomatik)
 - Sağlık: `GET /api/saglik` → `{"agent": "gemini"}` görüyorsanız anahtar tanınmış demektir.
-- Testler: `python -m pytest tests/ -v` (12 test, ağ gerektirmez)
+- Testler: `python -m pytest tests/ -v` (14 test, ağ gerektirmez)
 
 > **GEMINI_API_KEY olmadan da çalışır** — agent kural tabanlı fallback moduna
 > düşer ve yanıtlarda `agent_modu: "fallback"` görünür. Anahtar:
@@ -92,6 +92,6 @@ eas build -p android --profile preview
 2. (0:30) Onboarding: 4 adımda kurulum, telefonda.
 3. (1:00) Bugün ekranı: plan kartları + grafik; "neden 13:00?" → gerekçe.
 4. (1:30) Asistan: "salı öğlen evde yokum" → plan değişiyor, tool zinciri görünür
-   (hafiza_yaz → optimize). **Agent kanıtı bu sahne.**
+   (write_memory → optimize). **Agent kanıtı bu sahne.**
 5. (2:15) Proaktif bildirim + Ay sonu raporu (karşı-olgusal + CO₂).
 6. (2:45) Mimari tek slayt: 2 ML model + Gemini agent + mobil.
