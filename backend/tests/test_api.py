@@ -13,6 +13,7 @@ os.environ.pop("GEMINI_API_KEY", None)
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app import config  # noqa: E402
+
 config.GEMINI_API_KEY = ""
 config.DB_PATH = os.environ["VOLTAIC_DB"]
 

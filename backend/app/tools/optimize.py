@@ -17,8 +17,15 @@ is answered here):
 """
 
 from .. import config
-from ..schemas import (ConsumptionForecast, DailyPlan, Device, HouseholdProfile,
-                       PlanItem, ProductionForecast, Tariff)
+from ..schemas import (
+    ConsumptionForecast,
+    DailyPlan,
+    Device,
+    HouseholdProfile,
+    PlanItem,
+    ProductionForecast,
+    Tariff,
+)
 
 
 def _profile_cost(net: list[float], price: list[float], sell: list[float]) -> float:

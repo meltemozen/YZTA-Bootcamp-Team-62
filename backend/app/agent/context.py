@@ -7,8 +7,15 @@ from datetime import date, timedelta
 
 from .. import db
 from ..schemas import DailyPlan, HouseholdProfile
-from ..tools import (forecast_consumption, forecast_production, get_tariff,
-                     get_weather, optimize, read_memory, write_memory)
+from ..tools import (
+    forecast_consumption,
+    forecast_production,
+    get_tariff,
+    get_weather,
+    optimize,
+    read_memory,
+    write_memory,
+)
 
 
 def _resolve_date(text: str | None) -> date:

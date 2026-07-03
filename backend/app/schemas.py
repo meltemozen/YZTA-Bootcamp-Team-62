@@ -8,10 +8,9 @@ All hourly arrays have 24 elements and represent local time 00:00-23:00.
 """
 
 from datetime import date
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
-
 
 # --------------------------------------------------------------------------
 # User and household profile
@@ -109,7 +108,7 @@ class UserPreference(BaseModel):
     """read_memory/write_memory unit."""
     text: str = Field(description="e.g. 'Nobody is home on Tuesday afternoons'")
     source: Literal["user", "inferred"] = "user"
-    date: Optional[str] = None
+    date: str | None = None
 
 
 # --------------------------------------------------------------------------
@@ -132,7 +131,7 @@ class AssistantRequest(BaseModel):
 
 class AssistantResponse(BaseModel):
     reply: str = Field(description="The agent's reasoned Turkish answer")
-    plan: Optional[DailyPlan] = None
+    plan: DailyPlan | None = None
     agent_mode: Literal["gemini", "fallback"]
     tool_calls: list[str] = Field(default_factory=list, description="Transparency: which tools were called")
 

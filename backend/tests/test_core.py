@@ -9,10 +9,10 @@ from datetime import date
 import pytest
 
 from app.schemas import Device, HouseholdProfile, Weather
-from app.tools.optimize import optimize
-from app.tools.tariff import get_tariff, time_band
 from app.tools.consumption import forecast_consumption
+from app.tools.optimize import optimize
 from app.tools.production import forecast_production
+from app.tools.tariff import get_tariff, time_band
 
 DAY = date(2026, 7, 15)
 

@@ -65,13 +65,15 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 ## Teknik Dokümantasyon
 
+- [HANDOFF.md](HANDOFF.md) — AI agent / yeni geliştirici hızlı başlangıç (kurallar, mimari, kalınan yer, sonraki iş)
+- [docs/SPRINTS.md](docs/SPRINTS.md) — sprint planı & product backlog (Trello'ya hazır kart açıklamaları)
 - [docs/TEKNIK.md](docs/TEKNIK.md) — mimari, kurulum, depo yapısı, kalan işler
 - [docs/CONTRACT.md](docs/CONTRACT.md) — model–agent tool kontratı (kilitli, v1.2)
 - [docs/METHOD.md](docs/METHOD.md) — veri doğruluğu, mevzuat kaynakları, dürüstlük ilkeleri
 - [docs/DEPLOY.md](docs/DEPLOY.md) — çalıştırma, Docker, canlıya alma, demo videosu akışı
 
-**Hızlı başlangıç:** `backend/` → `pip install -r requirements.txt` → `uvicorn app.main:app` ·
-`mobile/` → `npm install` → `npx expo start` (testler: `pytest tests/` — 14/14)
+**Hızlı başlangıç:** `backend/` → `pip install -r requirements-dev.txt` → `uvicorn app.main:app` ·
+`mobile/` → `npm install` → `npx expo start` (testler: `pytest tests/` — 14/14 · lint: `ruff check .`)
 
 ---
 

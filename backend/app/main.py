@@ -11,6 +11,7 @@ Endpoints map one-to-one to the mobile app screens:
 """
 
 import json
+import logging
 import os
 from datetime import date
 
@@ -20,15 +21,35 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import config, db
 from .agent import assistant_reply
 from .agent.context import ToolContext
-from .schemas import (AssistantRequest, AssistantResponse, DailyPlan, Feedback,
-                      HouseholdProfile, MonthlyReport, RegisterRequest, RegisterResponse)
+from .schemas import (
+    AssistantRequest,
+    AssistantResponse,
+    DailyPlan,
+    Feedback,
+    HouseholdProfile,
+    MonthlyReport,
+    RegisterRequest,
+    RegisterResponse,
+)
 from .services.notifications import notifications
 from .services.report import monthly_report
 
-app = FastAPI(title="Voltaic API", version="0.1.0",
+APP_VERSION = "0.1.0"
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+
+app = FastAPI(title="Voltaic API", version=APP_VERSION,
               description="Rooftop-PV energy assistant — tailored for Turkey")
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
+# CORS origins are env-driven for production: set VOLTAIC_CORS_ORIGINS to a
+# comma-separated allow-list (e.g. the deployed web URL). Defaults to "*" for
+# local development and Expo Go.
+_origins = os.getenv("VOLTAIC_CORS_ORIGINS", "*").strip()
+_allow_origins = ["*"] if _origins == "*" else [o.strip() for o in _origins.split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=_allow_origins, allow_methods=["*"],
                    allow_headers=["*"])
 
 
@@ -38,7 +59,8 @@ db.init_db()
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "agent": "gemini" if config.GEMINI_API_KEY else "fallback"}
+    return {"status": "ok", "version": APP_VERSION,
+            "agent": "gemini" if config.GEMINI_API_KEY else "fallback"}
 
 
 @app.post("/api/register", response_model=RegisterResponse)

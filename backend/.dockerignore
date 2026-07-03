@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.db
+.env
+tests/
+requirements-dev.txt
+pyproject.toml
+.ruff_cache/

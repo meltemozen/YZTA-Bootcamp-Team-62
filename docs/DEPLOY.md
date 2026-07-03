@@ -6,14 +6,15 @@
 cd backend
 python -m venv .venv
 .venv\Scripts\activate            # Windows | Linux/Mac: source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime + pytest + ruff (prod: requirements.txt)
 copy .env.example .env            # GEMINI_API_KEY'i içine yaz
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 - API dokümanı: http://localhost:8000/docs (FastAPI otomatik)
-- Sağlık: `GET /api/saglik` → `{"agent": "gemini"}` görüyorsanız anahtar tanınmış demektir.
-- Testler: `python -m pytest tests/ -v` (14 test, ağ gerektirmez)
+- Sağlık: `GET /api/health` → `{"agent": "gemini"}` görüyorsanız anahtar tanınmış demektir.
+- Testler: `python -m pytest tests/ -v` (14 test, ağ gerektirmez) · Lint: `ruff check .`
+- CI: her push/PR'da GitHub Actions backend testleri + lint + mobil config kontrolü çalıştırır (`.github/workflows/ci.yml`).
 
 > **GEMINI_API_KEY olmadan da çalışır** — agent kural tabanlı fallback moduna
 > düşer ve yanıtlarda `agent_modu: "fallback"` görünür. Anahtar:
