@@ -4,6 +4,7 @@
 // NOT requested — the backend estimates it from the bill (calibration).
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, Text, TextInput, View,
@@ -88,6 +89,8 @@ export default function Onboarding({ onDone }) {
   const [tariff, setTariff] = useState('single');
   const [catalog, setCatalog] = useState([]);
   const [selectedDevices, setSelectedDevices] = useState([]);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [weatherCheck, setWeatherCheck] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -99,6 +102,42 @@ export default function Onboarding({ onDone }) {
     setSelectedDevices((current) =>
       isDeviceSelected(device.name) ? current.filter((d) => d.name !== device.name) : [...current, device]
     );
+
+  const useCurrentLocation = async () => {
+    setLocationLoading(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        alertUser('Konum izni gerekli', 'Konum izni vermezsen listeden il seçerek devam edebilirsin.');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      let label = 'Konumum';
+      try {
+        const [place] = await Location.reverseGeocodeAsync(position.coords);
+        label = place?.city || place?.subregion || place?.region || label;
+      } catch {
+        // Reverse geocoding is only a label; coordinates are enough for the model.
+      }
+      const nextCity = {
+        name: label,
+        lat: Number(position.coords.latitude.toFixed(4)),
+        lon: Number(position.coords.longitude.toFixed(4)),
+      };
+      setCity(nextCity);
+      const check = await api.weatherCheck({
+        lat: nextCity.lat,
+        lon: nextCity.lon,
+        panel_kw: parseFloat(panelKw) || 5,
+        day: 'today',
+      });
+      setWeatherCheck(check);
+    } catch (err) {
+      alertUser('Konum alınamadı', `Konum veya hava durumu kontrolü başarısız oldu.\n\n${err.message}`);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   const finish = async () => {
     setSubmitting(true);
@@ -136,6 +175,36 @@ export default function Onboarding({ onDone }) {
         <Option label="İşyerim" selected={type === 'business'} onPress={() => setType('business')} />
       </View>
       <Text style={[text.title, { marginVertical: spacing.m }]}>Hangi ilde?</Text>
+      <Pressable
+        disabled={locationLoading}
+        onPress={useCurrentLocation}
+        style={[primaryButton, {
+          alignSelf: 'flex-start', minWidth: 190, marginBottom: spacing.m,
+          opacity: locationLoading ? 0.7 : 1,
+        }]}
+      >
+        {locationLoading ? (
+          <ActivityIndicator color={colors.amberInk} />
+        ) : (
+          <Text style={primaryButtonText}>Konumumu kullan</Text>
+        )}
+      </Pressable>
+      {weatherCheck && (
+        <View style={{
+          borderWidth: 1, borderColor: colors.border, borderRadius: 12,
+          backgroundColor: colors.input, padding: spacing.m, marginBottom: spacing.m,
+        }}>
+          <Text style={text.subtitle}>{city.name} hava kontrolü hazır</Text>
+          <Text style={[text.body, { marginTop: 4, fontSize: 13.5 }]}>
+            Bugün {weatherCheck.estimated_production_kwh.toFixed(1)} kWh üretim tahmini,
+            tepe güneş {String(weatherCheck.peak_hour).padStart(2, '0')}:00.
+            Bulut ortalaması %{weatherCheck.avg_cloud_pct.toFixed(0)}.
+          </Text>
+          <Text style={[text.small, { marginTop: 6 }]}>
+            Model: {weatherCheck.production_model_version}
+          </Text>
+        </View>
+      )}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {CITIES.map((c) => (
           <Option key={c.name} small label={c.name}

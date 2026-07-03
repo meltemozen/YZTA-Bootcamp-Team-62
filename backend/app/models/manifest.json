@@ -1,0 +1,14 @@
+{
+  "production": {
+    "active_version": "v1-weather-regressor",
+    "artifact": "production_v1.json",
+    "runtime_inputs": ["Open-Meteo shortwave_radiation", "temperature_2m", "cloud_cover", "panel_kw"],
+    "sprint": "S2-1"
+  },
+  "consumption": {
+    "active_version": "v1-generic-load-shape",
+    "artifact": "consumption_v1.json",
+    "runtime_inputs": ["monthly_bill_kwh", "user_type", "date", "flexible_devices"],
+    "sprint": "S2-2"
+  }
+}

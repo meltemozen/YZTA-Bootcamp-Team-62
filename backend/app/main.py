@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import time
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,9 +32,12 @@ from .schemas import (
     MonthlyReport,
     RegisterRequest,
     RegisterResponse,
+    WeatherCheck,
 )
 from .services.notifications import notifications
 from .services.report import monthly_report
+from .tools.production import forecast_production
+from .tools.weather import get_weather
 
 APP_VERSION = "0.1.0"
 
@@ -82,8 +85,37 @@ db.init_db()
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": APP_VERSION,
-            "agent": "gemini" if config.GEMINI_API_KEY else "fallback"}
+    agent = "gemini" if config.GEMINI_API_KEY else "ollama" if config.OLLAMA_ENABLED else "fallback"
+    return {"status": "ok", "version": APP_VERSION, "agent": agent}
+
+
+@app.get("/api/weather-check", response_model=WeatherCheck)
+def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "today"):
+    if day in ("today", "bugun", "bugün"):
+        target = date.today()
+    elif day in ("tomorrow", "yarin", "yarın"):
+        target = date.today() + timedelta(days=1)
+    else:
+        try:
+            target = date.fromisoformat(day)
+        except ValueError as err:
+            raise HTTPException(400, "Geçersiz tarih") from err
+    weather = get_weather(lat, lon, target)
+    production = forecast_production(weather, panel_kw)
+    peak_hour = max(range(24), key=lambda h: weather.irradiance_wm2[h])
+    return WeatherCheck(
+        date=target,
+        lat=lat,
+        lon=lon,
+        total_irradiance_kwh_m2=round(sum(weather.irradiance_wm2) / 1000, 2),
+        peak_irradiance_wm2=round(weather.irradiance_wm2[peak_hour], 1),
+        peak_hour=peak_hour,
+        avg_cloud_pct=round(sum(weather.cloud_pct) / 24, 1),
+        min_temp_c=round(min(weather.temp_c), 1),
+        max_temp_c=round(max(weather.temp_c), 1),
+        production_model_version=production.model_version,
+        estimated_production_kwh=production.total_kwh,
+    )
 
 
 @app.post("/api/register", response_model=RegisterResponse)

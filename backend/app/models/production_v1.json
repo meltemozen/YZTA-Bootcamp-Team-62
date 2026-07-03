@@ -1,0 +1,23 @@
+{
+  "model_version": "v1-weather-regressor",
+  "trained_on": "PVGIS hourly PV output schema; generic coefficients bundled for offline demo",
+  "target": "hourly AC kWh per installed kWp",
+  "features": [
+    "shortwave_radiation_wm2",
+    "temperature_2m_c",
+    "cloud_cover_pct",
+    "hour_solar_shape",
+    "day_of_year_solar_shape"
+  ],
+  "coefficients": {
+    "ghi": 0.00083,
+    "temp_loss": -0.0000034,
+    "cloud_interaction": -0.00000042,
+    "edge_hour_loss": -0.035
+  },
+  "intercept": 0.0,
+  "fallback_performance_ratio": 0.80,
+  "max_kw_per_kwp": 1.0,
+  "blend_with_physical": 0.25,
+  "notes": "The runtime model is weather-driven and can be retrained with data/scripts/train_production_model.py when PVGIS CSVs are available."
+}

@@ -120,6 +120,13 @@ export default function Today({ userId }) {
             }}>
               Aralık gösteriyoruz: tüketimin faturadan tahmin ediliyor — dürüst rakam.
             </Text>
+            {plan.chart_data.models && (
+              <Text style={{
+                fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.55)', marginTop: 5,
+              }}>
+                Model: {plan.chart_data.models.production} · {plan.chart_data.models.consumption}
+              </Text>
+            )}
           </LinearGradient>
 
           {/* Chart */}

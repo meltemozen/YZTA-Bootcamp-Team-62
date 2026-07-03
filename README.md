@@ -67,13 +67,16 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 - [HANDOFF.md](HANDOFF.md) — AI agent / yeni geliştirici hızlı başlangıç (kurallar, mimari, kalınan yer, sonraki iş)
 - [docs/SPRINTS.md](docs/SPRINTS.md) — sprint planı & product backlog (Trello'ya hazır kart açıklamaları)
+- [docs/SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) — sistem mimarisi, ML katmanı, enerji optimizasyonu ve Türkiye uyarlaması
+- [docs/research/ENERGY_OPTIMIZATION_RESEARCH.md](docs/research/ENERGY_OPTIMIZATION_RESEARCH.md) — açık kaynak enerji optimizasyonu, fiyat adapter'ı ve gerçek zamanlı yeniden planlama
+- [docs/research/DEVICE_AND_EV_ASSUMPTIONS.md](docs/research/DEVICE_AND_EV_ASSUMPTIONS.md) — cihaz tüketimi ve EV şarj varsayımları
 - [docs/TEKNIK.md](docs/TEKNIK.md) — mimari, kurulum, depo yapısı, kalan işler
 - [docs/CONTRACT.md](docs/CONTRACT.md) — model–agent tool kontratı (kilitli, v1.2)
 - [docs/METHOD.md](docs/METHOD.md) — veri doğruluğu, mevzuat kaynakları, dürüstlük ilkeleri
 - [docs/DEPLOY.md](docs/DEPLOY.md) — çalıştırma, Docker, canlıya alma, demo videosu akışı
 
 **Hızlı başlangıç:** `backend/` → `pip install -r requirements-dev.txt` → `uvicorn app.main:app` ·
-`mobile/` → `npm install` → `npx expo start` (testler: `pytest tests/` — 20/20 · lint: `ruff check .`)
+`mobile/` → `npm install` → `npx expo start` (testler: `pytest tests/` — 27/27 · lint: `ruff check .`)
 
 ---
 
@@ -83,9 +86,9 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 > modelli **uçtan uca çalışan ürün** ve **temiz İngilizce kod tabanı** Sprint 1
 > sonunda hazır. Bu yüzden orijinal plandaki "iskelet" (S1) ve "karar zekası" (S2)
 > işleri Sprint 1 altında birleştirilip **tamamlandı** olarak raporlandı; Sprint 2
-> ve 3, geriye kalan **gerçek** işe (baseline → LightGBM model yükseltmesi,
-> değerlendirme, canlıya alma, teslim) göre yeniden yazıldı. Toplam ≈ **103 SP**
-> (S1: 48 · S2: 34 · S3: 21). Ek teknik derinlik backlog'u için
+> ve 3, geriye kalan **gerçek** işe (weather-aware model yükseltmesi,
+> gerçek zamanlı optimizasyon, değerlendirme, canlıya alma, teslim) göre yeniden yazıldı.
+> Toplam ≈ **113 SP** (S1: 48 · S2: 44 · S3: 21). Ek teknik derinlik backlog'u için
 > [docs/SPRINTS.md](docs/SPRINTS.md) Trello kartlarına hazır açıklamalar içerir.
 
 <details open>
@@ -104,7 +107,7 @@ modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tab
 | S1-6 | Gemini function-calling agent + kural-tabanlı fallback + **müzakere döngüsü** (itiraz → hafıza → yeniden planla) | YZ | 8 | ✅ |
 | S1-7 | Mobil + web uygulaması (Expo tek kod tabanı: onboarding, plan, asistan, rapor, ayarlar + grafik + marka) | YZ | 8 | ✅ |
 | S1-8 | Proaktif uyarılar + karşı-olgusal ay sonu raporu + CO₂/çevre katmanı + **14 test** & uçtan uca doğrulama | Ortak | 5 | ✅ |
-| S1-9 | Grounding guard + agent eval suite + API sağlamlaştırma (20 test, güvenli hata cevabı, grounded fallback) | YZ | 3 | ✅ |
+| S1-9 | Grounding guard + agent eval suite + API sağlamlaştırma (27 test, güvenli hata cevabı, grounded fallback) | YZ | 3 | ✅ |
 
 **Tamamlanan (kanıt):** yukarıdaki ekran görüntüleri Sprint 1 sonundaki çalışan
 üründen (gerçek Open-Meteo verisi, İzmir). Mevzuat/veri doğrulaması METHOD.md'de
@@ -118,22 +121,26 @@ modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tab
 </details>
 
 <details>
-<summary><h2>Sprint 2 — Gerçek ML & Agent Sağlamlaştırma (6 – 19 Temmuz) · 34 SP · 🔜 PLANLANDI</h2></summary>
+<summary><h2>Sprint 2 — Gerçek ML, Yerel LLM ve Optimizasyon Sağlamlaştırma (6 – 19 Temmuz) · 44 SP · 🟡 BRANCH</h2></summary>
 
-**Hedef:** Baseline modelleri gerçek makine öğrenmesiyle değiştir; agent'ı canlı
-Gemini anahtarıyla sağlamlaştır. Kontrat sabit — yalnız tool gövdeleri değişir.
+**Hedef:** Baseline modelleri hava/veri girdili v1 artifact'lere taşı; agent'ı
+Gemini/Ollama/fallback provider zinciriyle sağlamlaştır; gerçek zamanlı hava/saat
+değişimlerine göre optimizer'ı uygulanabilir plan üretir hale getir.
 
-| # | Görev | Ekip | SP |
-|---|---|---|---|
-| S2-1 | LightGBM üretim modeli v1 (`production.py` gövdesi; `model_version`→`v1-lightgbm`) | VB | 8 |
-| S2-2 | LightGBM tüketim modeli v1 (`consumption.py` gövdesi) | VB | 8 |
-| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 |
-| S2-4 | Gemini anahtarıyla uçtan uca agent testi + prompt iyileştirme | YZ | 5 |
-| S2-5 | Chroma semantik hafıza (`memory.py` genişletme; imza sabit) | YZ | 5 |
-| S2-6 | Cihaz kataloğu genişletme + EV şarj senaryosu ince ayarı | YZ | 3 |
+| # | Görev | Ekip | SP | Durum |
+|---|---|---|---|---|
+| S2-1 | Weather-aware üretim modeli v1 + PVGIS eğitim scripti | VB | 8 | 🟡 branch |
+| S2-2 | Generic smart-meter tüketim modeli v1 + shape eğitim scripti | VB | 8 | 🟡 branch |
+| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 | Planlandı |
+| S2-4 | Gemini/Ollama provider zinciri + prompt iyileştirme | YZ | 5 | 🟡 branch |
+| S2-5 | Chroma semantik hafıza (`memory.py` genişletme; imza sabit) | YZ | 5 | Planlandı |
+| S2-6 | Cihaz kataloğu + EV şarj güç/süre metadata'sı | YZ | 3 | 🟡 branch |
+| S2-7 | Expo konum izni + konuma göre hava kontrolü | YZ | 5 | 🟡 branch |
+| S2-8 | Gerçek zamanlı optimizer + performans iyileştirme | YZ | 5 | 🟡 branch |
 
-**Sprint 2 demo kriteri:** "Çamaşırı 13:00'te at" önerisi v1 LightGBM üretim
-tahminiyle üretiliyor; kullanıcı itirazıyla değişiyor; hafıza tercihi hatırlıyor.
+**Sprint 2 demo kriteri:** Konumdan bugünün/yarının hava tahmini alınır; v1 üretim
+modeli planı besler; geçmiş saatlere öneri verilmez; EV/büyük cihazlar fiyat ve
+güneş penceresine göre optimize edilir; agent bunu Türkçe ve grounded açıklar.
 
 </details>
 

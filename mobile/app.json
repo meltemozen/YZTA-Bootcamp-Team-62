@@ -11,12 +11,19 @@
     },
     "android": {
       "package": "com.team62.voltaic",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0b0f1a"
       }
     },
     "ios": {
-      "bundleIdentifier": "com.team62.voltaic"
+      "bundleIdentifier": "com.team62.voltaic",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Voltaic konumunu sadece yerel hava durumu ve güneş üretimi tahmini için kullanır."
+      }
     },
     "web": {
       "bundler": "metro",
@@ -27,7 +34,8 @@
       "apiUrl": "http://192.168.1.100:8000"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-location"
     ]
   }
 }

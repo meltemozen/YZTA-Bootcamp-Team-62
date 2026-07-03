@@ -92,8 +92,9 @@ class ToolContext:
             self.forecast_consumption(str(d))
         if d not in self._tariff:
             self.get_tariff(str(d))
+        current_hour = self._weather.get(d).current_hour if d in self._weather else None
         plan = optimize(self._production[d], self._consumption[d], self._tariff[d],
-                        self.profile, set(blocked_hours or []))
+                        self.profile, set(blocked_hours or []), current_hour=current_hour)
         self.last_plan = plan
         db.save_plan(self.user_id, plan)
         return {

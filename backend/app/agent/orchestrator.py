@@ -21,6 +21,7 @@ from ..schemas import AssistantResponse, HouseholdProfile
 from . import fallback
 from .context import ToolContext
 from .grounding import ungrounded_numbers
+from .local_llm import ollama_loop
 
 log = logging.getLogger(__name__)
 
@@ -132,24 +133,42 @@ def _gemini_loop(context: ToolContext, message: str) -> str:
     return "Planı kurdum ama açıklamayı kısa kesmek zorunda kaldım — plan kartlarına bakabilirsin."
 
 
+def _safe_response(context: ToolContext, text: str, message: str,
+                   agent_mode: str) -> AssistantResponse:
+    if context.last_plan is not None:
+        bad = ungrounded_numbers(text, context.last_plan)
+        if bad:
+            log.warning("Ungrounded numbers in %s reply: %s", agent_mode, bad)
+            text = fallback.reply(context, message)
+            return AssistantResponse(reply=text, plan=context.last_plan,
+                                     agent_mode="fallback", tool_calls=context.calls)
+    return AssistantResponse(reply=text, plan=context.last_plan,
+                             agent_mode=agent_mode, tool_calls=context.calls)
+
+
 def assistant_reply(user_id: int, profile: HouseholdProfile, message: str) -> AssistantResponse:
     context = ToolContext(user_id, profile)
 
     if config.GEMINI_API_KEY:
         try:
             text = _gemini_loop(context, message)
-            # Honesty guard: never ship an LLM reply that invents figures.
-            if context.last_plan is not None:
-                bad = ungrounded_numbers(text, context.last_plan)
-                if bad:
-                    log.warning("Ungrounded numbers in agent reply: %s", bad)
-                    text = fallback.reply(context, message)
-                    return AssistantResponse(reply=text, plan=context.last_plan,
-                                             agent_mode="fallback", tool_calls=context.calls)
-            return AssistantResponse(reply=text, plan=context.last_plan,
-                                     agent_mode="gemini", tool_calls=context.calls)
+            return _safe_response(context, text, message, "gemini")
         except Exception:
             log.exception("Gemini orchestration failed, falling back")
+
+    if config.OLLAMA_ENABLED:
+        try:
+            text = ollama_loop(
+                context,
+                message,
+                system_prompt=SYSTEM_PROMPT,
+                tool_definitions=TOOL_DEFINITIONS,
+                clean_args=_clean_args,
+                max_steps=MAX_STEPS,
+            )
+            return _safe_response(context, text, message, "ollama")
+        except Exception:
+            log.exception("Ollama orchestration failed, falling back")
 
     text = fallback.reply(context, message)
     return AssistantResponse(reply=text, plan=context.last_plan,
