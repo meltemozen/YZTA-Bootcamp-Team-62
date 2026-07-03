@@ -1,6 +1,6 @@
-// Voltaic — kök bileşen.
-// Akış: kayıtlı kullanıcı yoksa Onboarding, varsa 4 sekmeli ana uygulama.
-// Marka fontları (Space Grotesk + Inter) yüklenmeden ekran gösterilmez.
+// Voltaic — root component.
+// Flow: if no saved user, show Onboarding; otherwise the 4-tab main app.
+// Screens are not shown until the brand fonts (Space Grotesk + Inter) load.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
@@ -17,125 +17,126 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { api } from './src/api';
-import { AyarIkon, GrafikIkon, SimsekIkon, SohbetIkon } from './src/components/Ikonlar';
-import Asistan from './src/screens/Asistan';
-import Ayarlar from './src/screens/Ayarlar';
-import Bugun from './src/screens/Bugun';
+import { SettingsIcon, ChartIcon, BoltIcon, ChatIcon } from './src/components/Icons';
+import Assistant from './src/screens/Assistant';
+import Settings from './src/screens/Settings';
+import Today from './src/screens/Today';
 import Onboarding from './src/screens/Onboarding';
-import Rapor from './src/screens/Rapor';
-import { font, renk } from './src/theme';
+import Report from './src/screens/Report';
+import { font, colors } from './src/theme';
 
-const Sekme = createBottomTabNavigator();
-const IKONLAR = { Bugün: SimsekIkon, Asistan: SohbetIkon, Rapor: GrafikIkon, Ayarlar: AyarIkon };
+const Tab = createBottomTabNavigator();
+// Tab route names are the Turkish labels shown to the user.
+const ICONS = { Bugün: BoltIcon, Asistan: ChatIcon, Rapor: ChartIcon, Ayarlar: SettingsIcon };
 
-const NavTema = {
+const NavTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: renk.sayfa,
-    card: renk.yuzey,
+    background: colors.page,
+    card: colors.surface,
     border: 'transparent',
-    primary: renk.amber,
-    text: renk.murekkep,
+    primary: colors.amber,
+    text: colors.ink,
   },
 };
 
-async function bildirimleriKur(kullaniciId) {
-  // Web'de sistem bildirimi zamanlaması desteklenmez; uyarılar zaten
-  // Bugün ekranında kart olarak gösteriliyor.
+async function scheduleNotifications(userId) {
+  // Web does not support scheduled system notifications; alerts are already
+  // shown as cards on the Today screen.
   if (Platform.OS === 'web') return;
   try {
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') return;
-    const { bildirimler } = await api.bildirimler(kullaniciId);
+    const { notifications } = await api.notifications(userId);
     await Notifications.cancelAllScheduledNotificationsAsync();
-    // Yarının fırsatları akşam 20:00'de hatırlatılır (proaktif agent davranışı)
-    for (const uyari of bildirimler.slice(0, 2)) {
-      const simdi = new Date();
-      const hedef = new Date(simdi);
-      hedef.setHours(20, 0, 0, 0);
-      if (hedef <= simdi) hedef.setDate(hedef.getDate() + 1);
+    // Tomorrow's opportunities are reminded at 20:00 (proactive agent behaviour)
+    for (const alert of notifications.slice(0, 2)) {
+      const now = new Date();
+      const target = new Date(now);
+      target.setHours(20, 0, 0, 0);
+      if (target <= now) target.setDate(target.getDate() + 1);
       await Notifications.scheduleNotificationAsync({
-        content: { title: uyari.baslik, body: uyari.metin },
-        trigger: hedef,
+        content: { title: alert.title, body: alert.text },
+        trigger: target,
       });
     }
   } catch {
-    // bildirim izni/ağ hatası uygulamayı engellemez
+    // notification permission/network error must not block the app
   }
 }
 
 export default function App() {
-  const [fontlarHazir] = useFonts({
+  const [fontsReady] = useFonts({
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold,
     SpaceGrotesk_500Medium, SpaceGrotesk_700Bold,
   });
-  const [kullaniciId, setKullaniciId] = useState(null);
-  const [hazir, setHazir] = useState(false);
+  const [userId, setUserId] = useState(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem('kullaniciId').then((deger) => {
-      if (deger) setKullaniciId(parseInt(deger, 10));
-      setHazir(true);
+    AsyncStorage.getItem('userId').then((value) => {
+      if (value) setUserId(parseInt(value, 10));
+      setReady(true);
     });
   }, []);
 
   useEffect(() => {
-    if (kullaniciId) bildirimleriKur(kullaniciId);
-  }, [kullaniciId]);
+    if (userId) scheduleNotifications(userId);
+  }, [userId]);
 
-  if (!hazir || !fontlarHazir) {
+  if (!ready || !fontsReady) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: renk.sayfa }}>
-        <ActivityIndicator color={renk.amber} size="large" />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.page }}>
+        <ActivityIndicator color={colors.amber} size="large" />
       </View>
     );
   }
 
-  if (!kullaniciId) {
+  if (!userId) {
     return (
       <>
         <StatusBar style="light" />
-        <Onboarding tamamlandi={setKullaniciId} />
+        <Onboarding onDone={setUserId} />
       </>
     );
   }
 
   return (
-    <NavigationContainer theme={NavTema}>
+    <NavigationContainer theme={NavTheme}>
       <StatusBar style="light" />
-      <Sekme.Navigator
+      <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
-          tabBarActiveTintColor: renk.amber,
-          tabBarInactiveTintColor: renk.soluk,
+          tabBarActiveTintColor: colors.amber,
+          tabBarInactiveTintColor: colors.faint,
           tabBarStyle: {
-            backgroundColor: renk.yuzey,
+            backgroundColor: colors.surface,
             borderTopWidth: 1,
-            borderTopColor: renk.kenar,
+            borderTopColor: colors.border,
             height: 62,
             paddingTop: 6,
           },
-          tabBarLabelStyle: { fontFamily: font.orta, fontSize: 11, paddingBottom: 6 },
+          tabBarLabelStyle: { fontFamily: font.medium, fontSize: 11, paddingBottom: 6 },
           tabBarIcon: ({ color }) => {
-            const Ikon = IKONLAR[route.name];
-            return <Ikon boyut={22} renk={color} />;
+            const Icon = ICONS[route.name];
+            return <Icon size={22} color={color} />;
           },
         })}
       >
-        <Sekme.Screen name="Bugün">
-          {() => <Bugun kullaniciId={kullaniciId} />}
-        </Sekme.Screen>
-        <Sekme.Screen name="Asistan">
-          {() => <Asistan kullaniciId={kullaniciId} />}
-        </Sekme.Screen>
-        <Sekme.Screen name="Rapor">
-          {() => <Rapor kullaniciId={kullaniciId} />}
-        </Sekme.Screen>
-        <Sekme.Screen name="Ayarlar">
-          {() => <Ayarlar kullaniciId={kullaniciId} sifirla={() => setKullaniciId(null)} />}
-        </Sekme.Screen>
-      </Sekme.Navigator>
+        <Tab.Screen name="Bugün">
+          {() => <Today userId={userId} />}
+        </Tab.Screen>
+        <Tab.Screen name="Asistan">
+          {() => <Assistant userId={userId} />}
+        </Tab.Screen>
+        <Tab.Screen name="Rapor">
+          {() => <Report userId={userId} />}
+        </Tab.Screen>
+        <Tab.Screen name="Ayarlar">
+          {() => <Settings userId={userId} onReset={() => setUserId(null)} />}
+        </Tab.Screen>
+      </Tab.Navigator>
     </NavigationContainer>
   );
 }

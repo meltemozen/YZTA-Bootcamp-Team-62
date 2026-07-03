@@ -1,49 +1,48 @@
-"""SQLite kalıcılık katmanı — kullanıcı, tercih (hafıza), öneri geçmişi,
-geri bildirim. Stdlib sqlite3; ek bağımlılık yok, Docker'da dosya volume'u
-ile kalıcı.
+"""SQLite persistence layer — users, preferences (memory), plan history,
+feedback. Stdlib sqlite3; no extra dependency, persistent in Docker via a
+file volume.
 """
 
-import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime
 
 from . import config
-from .schemas import GunlukPlan, HaneProfili
+from .schemas import DailyPlan, HouseholdProfile
 
-_SEMA = """
-CREATE TABLE IF NOT EXISTS kullanici (
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    profil TEXT NOT NULL,
-    olusturma TEXT NOT NULL
+    profile TEXT NOT NULL,
+    created TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS tercih (
+CREATE TABLE IF NOT EXISTS preference (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kullanici_id INTEGER NOT NULL,
-    metin TEXT NOT NULL,
-    kaynak TEXT NOT NULL DEFAULT 'kullanici',
-    tarih TEXT NOT NULL
+    user_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'user',
+    date TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS oneri (
+CREATE TABLE IF NOT EXISTS plan (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kullanici_id INTEGER NOT NULL,
-    tarih TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
     plan TEXT NOT NULL,
-    UNIQUE(kullanici_id, tarih)
+    UNIQUE(user_id, date)
 );
-CREATE TABLE IF NOT EXISTS geribildirim (
+CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kullanici_id INTEGER NOT NULL,
-    tarih TEXT NOT NULL,
-    kalem_ad TEXT NOT NULL,
-    uygulandi INTEGER NOT NULL,
-    UNIQUE(kullanici_id, tarih, kalem_ad)
+    user_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    applied INTEGER NOT NULL,
+    UNIQUE(user_id, date, item_name)
 );
 """
 
 
 @contextmanager
-def baglanti():
+def connect():
     con = sqlite3.connect(config.DB_PATH)
     con.row_factory = sqlite3.Row
     try:
@@ -53,84 +52,84 @@ def baglanti():
         con.close()
 
 
-def hazirla() -> None:
-    with baglanti() as con:
-        con.executescript(_SEMA)
+def init_db() -> None:
+    with connect() as con:
+        con.executescript(_SCHEMA)
 
 
-# --- Kullanıcı ---
+# --- User ---
 
-def kullanici_ekle(profil: HaneProfili) -> int:
-    with baglanti() as con:
-        imlec = con.execute(
-            "INSERT INTO kullanici (profil, olusturma) VALUES (?, ?)",
-            (profil.model_dump_json(), datetime.now().isoformat()))
-        return imlec.lastrowid
-
-
-def kullanici_getir(kullanici_id: int) -> HaneProfili | None:
-    with baglanti() as con:
-        satir = con.execute("SELECT profil FROM kullanici WHERE id = ?",
-                            (kullanici_id,)).fetchone()
-    return HaneProfili.model_validate_json(satir["profil"]) if satir else None
+def add_user(profile: HouseholdProfile) -> int:
+    with connect() as con:
+        cur = con.execute(
+            "INSERT INTO user (profile, created) VALUES (?, ?)",
+            (profile.model_dump_json(), datetime.now().isoformat()))
+        return cur.lastrowid
 
 
-def kullanici_guncelle(kullanici_id: int, profil: HaneProfili) -> None:
-    with baglanti() as con:
-        con.execute("UPDATE kullanici SET profil = ? WHERE id = ?",
-                    (profil.model_dump_json(), kullanici_id))
+def get_user(user_id: int) -> HouseholdProfile | None:
+    with connect() as con:
+        row = con.execute("SELECT profile FROM user WHERE id = ?",
+                          (user_id,)).fetchone()
+    return HouseholdProfile.model_validate_json(row["profile"]) if row else None
 
 
-# --- Hafıza (tercihler) ---
+def update_user(user_id: int, profile: HouseholdProfile) -> None:
+    with connect() as con:
+        con.execute("UPDATE user SET profile = ? WHERE id = ?",
+                    (profile.model_dump_json(), user_id))
 
-def tercih_ekle(kullanici_id: int, metin: str, kaynak: str = "kullanici") -> None:
-    with baglanti() as con:
+
+# --- Memory (preferences) ---
+
+def add_preference(user_id: int, text: str, source: str = "user") -> None:
+    with connect() as con:
         con.execute(
-            "INSERT INTO tercih (kullanici_id, metin, kaynak, tarih) VALUES (?, ?, ?, ?)",
-            (kullanici_id, metin, kaynak, datetime.now().isoformat()))
+            "INSERT INTO preference (user_id, text, source, date) VALUES (?, ?, ?, ?)",
+            (user_id, text, source, datetime.now().isoformat()))
 
 
-def tercihler(kullanici_id: int, limit: int = 20) -> list[dict]:
-    with baglanti() as con:
-        satirlar = con.execute(
-            "SELECT metin, kaynak, tarih FROM tercih WHERE kullanici_id = ? "
-            "ORDER BY id DESC LIMIT ?", (kullanici_id, limit)).fetchall()
-    return [dict(s) for s in satirlar]
+def preferences(user_id: int, limit: int = 20) -> list[dict]:
+    with connect() as con:
+        rows = con.execute(
+            "SELECT text, source, date FROM preference WHERE user_id = ? "
+            "ORDER BY id DESC LIMIT ?", (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
 
 
-# --- Öneri geçmişi + geri bildirim (karşı-olgusal raporun ham verisi) ---
+# --- Plan history + feedback (raw data for the counterfactual report) ---
 
-def oneri_kaydet(kullanici_id: int, plan: GunlukPlan) -> None:
-    with baglanti() as con:
+def save_plan(user_id: int, plan: DailyPlan) -> None:
+    with connect() as con:
         con.execute(
-            "INSERT INTO oneri (kullanici_id, tarih, plan) VALUES (?, ?, ?) "
-            "ON CONFLICT(kullanici_id, tarih) DO UPDATE SET plan = excluded.plan",
-            (kullanici_id, plan.tarih.isoformat(), plan.model_dump_json()))
+            "INSERT INTO plan (user_id, date, plan) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id, date) DO UPDATE SET plan = excluded.plan",
+            (user_id, plan.date.isoformat(), plan.model_dump_json()))
 
 
-def oneriler_ay(kullanici_id: int, ay: str) -> list[GunlukPlan]:
-    """ay: 'YYYY-MM'"""
-    with baglanti() as con:
-        satirlar = con.execute(
-            "SELECT plan FROM oneri WHERE kullanici_id = ? AND tarih LIKE ?",
-            (kullanici_id, f"{ay}-%")).fetchall()
-    return [GunlukPlan.model_validate_json(s["plan"]) for s in satirlar]
+def plans_for_month(user_id: int, month: str) -> list[DailyPlan]:
+    """month: 'YYYY-MM'"""
+    with connect() as con:
+        rows = con.execute(
+            "SELECT plan FROM plan WHERE user_id = ? AND date LIKE ?",
+            (user_id, f"{month}-%")).fetchall()
+    return [DailyPlan.model_validate_json(r["plan"]) for r in rows]
 
 
-def geribildirim_kaydet(kullanici_id: int, tarih: date, kalem_ad: str,
-                        uygulandi: bool) -> None:
-    with baglanti() as con:
+def save_feedback(user_id: int, date_: date, item_name: str,
+                  applied: bool) -> None:
+    with connect() as con:
         con.execute(
-            "INSERT INTO geribildirim (kullanici_id, tarih, kalem_ad, uygulandi) "
+            "INSERT INTO feedback (user_id, date, item_name, applied) "
             "VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(kullanici_id, tarih, kalem_ad) DO UPDATE SET uygulandi = excluded.uygulandi",
-            (kullanici_id, tarih.isoformat(), kalem_ad, int(uygulandi)))
+            "ON CONFLICT(user_id, date, item_name) DO UPDATE SET applied = excluded.applied",
+            (user_id, date_.isoformat(), item_name, int(applied)))
 
 
-def geribildirimler_ay(kullanici_id: int, ay: str) -> list[dict]:
-    with baglanti() as con:
-        satirlar = con.execute(
-            "SELECT tarih, kalem_ad, uygulandi FROM geribildirim "
-            "WHERE kullanici_id = ? AND tarih LIKE ?",
-            (kullanici_id, f"{ay}-%")).fetchall()
-    return [dict(s) for s in satirlar]
+def feedback_for_month(user_id: int, month: str) -> list[dict]:
+    with connect() as con:
+        rows = con.execute(
+            "SELECT date, item_name, applied FROM feedback "
+            "WHERE user_id = ? AND date LIKE ?",
+            (user_id, f"{month}-%")).fetchall()
+    return [dict(r) for r in rows]

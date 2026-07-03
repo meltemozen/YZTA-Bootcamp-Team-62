@@ -1,7 +1,8 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-httpx>=0.27
-pydantic>=2.8
-google-genai>=1.0
-python-dotenv>=1.0
-pytest>=8.0
+# Runtime dependencies (pinned to compatible ranges for reproducible builds).
+# Dev/test tooling lives in requirements-dev.txt.
+fastapi>=0.136,<1.0
+uvicorn[standard]>=0.48,<1.0
+httpx>=0.27,<0.29
+pydantic>=2.8,<3.0
+google-genai>=1.0,<2.0
+python-dotenv>=1.0,<2.0

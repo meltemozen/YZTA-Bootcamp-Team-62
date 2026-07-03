@@ -1,91 +1,94 @@
-"""Kural tabanlı yedek planlayıcı.
+"""Rule-based fallback planner.
 
-Gemini anahtarı yokken veya API düştüğünde ürünün çalışmaya devam etmesini
-sağlar: sabit sırayla tool çağırır, şablonla Türkçe açıklama üretir.
-Bu bir "agent" DEĞİLDİR (sıra elle kuruludur) — yanıtta agent_modu='fallback'
-olarak dürüstçe işaretlenir.
+Keeps the product working when the Gemini key is missing or the API fails:
+calls tools in a fixed order and produces a Turkish explanation from templates.
+This is NOT an "agent" (the order is hand-wired) — the response is honestly
+marked agent_mode='fallback'.
+
+The regex patterns and output strings are Turkish because the user speaks
+Turkish; only the code identifiers are English.
 """
 
 import re
 
-from .baglam import AracBaglami
+from .context import ToolContext
 
-_GEREKCE_METNI = {
-    "gunes_bol": "o saatte güneş üretimi tüketimini karşılıyor",
-    "puant_kacinma": "17-22 arası puant tarifesinden kaçınıyoruz",
-    "gece_ucuz": "gece tarifesi en ucuz dilim",
-    "mahsup_avantaji": "mahsupta satış fiyatı alıştan düşük, evde tüketmek daha kârlı",
+_REASON_TEXT = {
+    "solar_surplus": "o saatte güneş üretimi tüketimini karşılıyor",
+    "avoid_peak": "17-22 arası puant tarifesinden kaçınıyoruz",
+    "cheap_night": "gece tarifesi en ucuz dilim",
+    "netmeter_edge": "mahsupta satış fiyatı alıştan düşük, evde tüketmek daha kârlı",
 }
 
-_SAAT_KALIBI = re.compile(r"(\d{1,2})[:.]?(\d{2})?\s*(?:'?[dt]en|'?[dt]an)?\s*(sonra|önce|once)", re.IGNORECASE)
+_HOUR_PATTERN = re.compile(r"(\d{1,2})[:.]?(\d{2})?\s*(?:'?[dt]en|'?[dt]an)?\s*(sonra|önce|once)", re.IGNORECASE)
 
-_TERCIH_IPUCLARI = ("evde yokum", "evde olmuyorum", "misafir", "istemiyorum",
-                    "olmaz", "uyuyor", "gürültü", "gurultu", "sonra", "önce", "once")
-
-
-def _tercih_mi(mesaj: str) -> bool:
-    kucuk = mesaj.lower()
-    return any(ipucu in kucuk for ipucu in _TERCIH_IPUCLARI)
+_PREFERENCE_HINTS = ("evde yokum", "evde olmuyorum", "misafir", "istemiyorum",
+                     "olmaz", "uyuyor", "gürültü", "gurultu", "sonra", "önce", "once")
 
 
-def _yasak_saatler(mesaj: str) -> list[int]:
-    """Basit kalıplar: '22den sonra olmaz' → 22..07 arası yasak."""
-    eslesme = _SAAT_KALIBI.search(mesaj)
-    if not eslesme:
+def _is_preference(message: str) -> bool:
+    lower = message.lower()
+    return any(hint in lower for hint in _PREFERENCE_HINTS)
+
+
+def _blocked_hours(message: str) -> list[int]:
+    """Simple patterns: '22den sonra olmaz' → block 22..07."""
+    match = _HOUR_PATTERN.search(message)
+    if not match:
         return []
-    saat = int(eslesme.group(1)) % 24
-    yon = eslesme.group(3).lower()
-    if yon == "sonra":
-        return [(saat + i) % 24 for i in range(0, (7 - saat) % 24 or 9)]
-    return list(range(0, saat))
+    hour = int(match.group(1)) % 24
+    direction = match.group(3).lower()
+    if direction == "sonra":
+        return [(hour + i) % 24 for i in range(0, (7 - hour) % 24 or 9)]
+    return list(range(0, hour))
 
 
-def _tl(alt: float, ust: float) -> str:
-    """Aralığı okunur yaz; uçlar yuvarlamada eşitleşiyorsa tek değer göster."""
-    if f"{alt:.0f}" == f"{ust:.0f}":
-        return f"~{ust:.1f} TL"
-    return f"{alt:.0f}-{ust:.0f} TL"
+def _tl(low: float, high: float) -> str:
+    """Readable range; if the ends collapse when rounded, show a single value."""
+    if f"{low:.0f}" == f"{high:.0f}":
+        return f"~{high:.1f} TL"
+    return f"{low:.0f}-{high:.0f} TL"
 
 
-def cevapla(baglam: AracBaglami, mesaj: str) -> str:
-    tarih = "yarin" if "yarın" in mesaj.lower() or "yarin" in mesaj.lower() else "bugun"
+def reply(context: ToolContext, message: str) -> str:
+    day = "tomorrow" if "yarın" in message.lower() or "yarin" in message.lower() else "today"
 
-    yasak = []
-    if mesaj and _tercih_mi(mesaj):
-        baglam.hafiza_yaz(mesaj.strip())
-        yasak = _yasak_saatler(mesaj)
+    blocked = []
+    if message and _is_preference(message):
+        context.write_memory(message.strip())
+        blocked = _blocked_hours(message)
 
-    # Kayıtlı tercihlerden de yasak saat çıkar
-    for tercih in baglam.hafiza_oku():
-        yasak += _yasak_saatler(tercih["metin"])
+    # Derive blocked hours from stored preferences too
+    for pref in context.read_memory():
+        blocked += _blocked_hours(pref["text"])
 
-    baglam.hava_getir(tarih)
-    baglam.uretim_tahmin(tarih)
-    baglam.tuketim_tahmin(tarih)
-    baglam.tarife_getir(tarih)
-    ozet = baglam.optimize(tarih, sorted(set(yasak)) or None)
+    context.get_weather(day)
+    context.forecast_production(day)
+    context.forecast_consumption(day)
+    context.get_tariff(day)
+    summary = context.optimize(day, sorted(set(blocked)) or None)
 
-    if not ozet["kalemler"]:
+    if not summary["items"]:
         return ("Bugün için kaydıracak esnek cihaz bulamadım. Ayarlardan çamaşır makinesi, "
                 "bulaşık makinesi gibi cihazlarını ekleyebilirsin.")
 
-    satirlar = []
-    for k in ozet["kalemler"]:
-        if k["tur"] == "batarya_sarj":
-            satirlar.append(f"Bataryayı {k['baslangic']:02d}:00-{k['bitis']:02d}:00 arası güneşten doldur.")
-        elif k["tur"] == "batarya_desarj":
-            satirlar.append(f"Bataryayı {k['baslangic']:02d}:00'dan itibaren kullan "
-                            f"({_tl(*k['tasarruf_tl'])}).")
+    lines = []
+    for i in summary["items"]:
+        if i["type"] == "battery_charge":
+            lines.append(f"Bataryayı {i['start']:02d}:00-{i['end']:02d}:00 arası güneşten doldur.")
+        elif i["type"] == "battery_discharge":
+            lines.append(f"Bataryayı {i['start']:02d}:00'dan itibaren kullan "
+                         f"({_tl(*i['saving_tl'])}).")
         else:
-            gerekce = _GEREKCE_METNI.get(k["gerekce"], "")
-            satirlar.append(f"{k['ad']}: {k['baslangic']:02d}:00'da çalıştır "
-                            f"({_tl(*k['tasarruf_tl'])}) — {gerekce}.")
+            reason = _REASON_TEXT.get(i["reason"], "")
+            lines.append(f"{i['name']}: {i['start']:02d}:00'da çalıştır "
+                         f"({_tl(*i['saving_tl'])}) — {reason}.")
 
-    alt, ust = ozet["toplam_tasarruf_tl"]
-    araba_km = ozet.get("cevre", {}).get("araba_km")
-    cevre_eki = f" ({araba_km:.0f} km araba yolculuğuna denk)" if araba_km else ""
-    genel = (f"Günün planı hazır — tahmini {_tl(alt, ust)} tasarruf, "
-             f"{ozet['co2_kg']:.1f} kg CO2 önleniyor{cevre_eki}.")
-    if yasak:
-        genel += " Tercihlerini dikkate aldım (bazı saatler hariç tutuldu)."
-    return genel + "\n\n" + "\n".join(f"• {s}" for s in satirlar)
+    low, high = summary["total_saving_tl"]
+    car_km = summary.get("env", {}).get("car_km")
+    env_suffix = f" ({car_km:.0f} km araba yolculuğuna denk)" if car_km else ""
+    header = (f"Günün planı hazır — tahmini {_tl(low, high)} tasarruf, "
+              f"{summary['co2_kg']:.1f} kg CO2 önleniyor{env_suffix}.")
+    if blocked:
+        header += " Tercihlerini dikkate aldım (bazı saatler hariç tutuldu)."
+    return header + "\n\n" + "\n".join(f"• {s}" for s in lines)

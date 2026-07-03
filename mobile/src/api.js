@@ -1,63 +1,64 @@
-// Backend API istemcisi.
-// BASE_URL öncelik sırası: Ayarlar ekranında kaydedilen adres → app.json extra.
-// Expo Go ile telefonda test ederken bilgisayarın YEREL AĞ IP'sini kullanın
-// (localhost telefonun kendisidir!): örn. http://192.168.1.34:8000
+// Backend API client.
+// BASE_URL priority: address saved on the Settings screen → app.json extra.
+// When testing on a phone with Expo Go, use the computer's LOCAL NETWORK IP
+// (localhost is the phone itself!): e.g. http://192.168.1.34:8000
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-// Web'de varsayılan: sayfanın açıldığı makinedeki backend (localhost:8000).
-// Telefonda (Expo Go): app.json'daki adres; Ayarlar ekranından değiştirilebilir.
-const VARSAYILAN_URL =
+// On web the default is the backend on the machine serving the page (localhost:8000).
+// On a phone (Expo Go): the address in app.json; changeable from the Settings screen.
+const DEFAULT_URL =
   Platform.OS === 'web' && typeof window !== 'undefined'
     ? `http://${window.location.hostname}:8000`
     : Constants?.expoConfig?.extra?.apiUrl || 'http://192.168.1.100:8000';
 
 export async function apiUrl() {
-  return (await AsyncStorage.getItem('apiUrl')) || VARSAYILAN_URL;
+  return (await AsyncStorage.getItem('apiUrl')) || DEFAULT_URL;
 }
 
-async function istek(yol, secenekler = {}) {
-  const taban = await apiUrl();
-  const yanit = await fetch(`${taban}${yol}`, {
+async function request(path, options = {}) {
+  const base = await apiUrl();
+  const resp = await fetch(`${base}${path}`, {
     headers: { 'Content-Type': 'application/json' },
-    ...secenekler,
+    ...options,
   });
-  if (!yanit.ok) {
-    const govde = await yanit.text();
-    throw new Error(`API ${yanit.status}: ${govde.slice(0, 200)}`);
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`API ${resp.status}: ${body.slice(0, 200)}`);
   }
-  return yanit.json();
+  return resp.json();
 }
 
 export const api = {
-  kayit: (profil) =>
-    istek('/api/kayit', { method: 'POST', body: JSON.stringify({ profil }) }),
-  profil: (id) => istek(`/api/profil/${id}`),
-  profilGuncelle: (id, profil) =>
-    istek(`/api/profil/${id}`, { method: 'PUT', body: JSON.stringify(profil) }),
-  plan: (id, gun = 'bugun') => istek(`/api/plan/${id}?gun=${gun}`),
-  asistan: (kullanici_id, mesaj) =>
-    istek('/api/asistan', { method: 'POST', body: JSON.stringify({ kullanici_id, mesaj }) }),
-  geribildirim: (govde) =>
-    istek('/api/geribildirim', { method: 'POST', body: JSON.stringify(govde) }),
-  rapor: (id, ay) => istek(`/api/rapor/${id}${ay ? `?ay=${ay}` : ''}`),
-  bildirimler: (id) => istek(`/api/bildirimler/${id}`),
-  cihazReferans: () => istek('/api/cihaz-referans'),
+  register: (profile) =>
+    request('/api/register', { method: 'POST', body: JSON.stringify({ profile }) }),
+  profile: (id) => request(`/api/profile/${id}`),
+  updateProfile: (id, profile) =>
+    request(`/api/profile/${id}`, { method: 'PUT', body: JSON.stringify(profile) }),
+  plan: (id, day = 'today') => request(`/api/plan/${id}?day=${day}`),
+  assistant: (user_id, message) =>
+    request('/api/assistant', { method: 'POST', body: JSON.stringify({ user_id, message }) }),
+  feedback: (body) =>
+    request('/api/feedback', { method: 'POST', body: JSON.stringify(body) }),
+  report: (id, month) => request(`/api/report/${id}${month ? `?month=${month}` : ''}`),
+  notifications: (id) => request(`/api/notifications/${id}`),
+  deviceCatalog: () => request('/api/device-catalog'),
 };
 
-// Tasarruf aralığını okunur yaz: yuvarlanınca uçlar eşitleşiyorsa ("1–1 TL")
-// tek değer göster.
-export function aralikTL(min, max) {
+// Render the saving range readably: if the ends collapse when rounded ("1–1 TL")
+// show a single value.
+export function rangeTL(min, max) {
   const a = min.toFixed(0);
-  const u = max.toFixed(0);
-  return a === u ? `~${max.toFixed(1)} TL` : `${a}–${u} TL`;
+  const b = max.toFixed(0);
+  return a === b ? `~${max.toFixed(1)} TL` : `${a}–${b} TL`;
 }
 
-export const GEREKCE_METNI = {
-  gunes_bol: 'Güneş üretimi bu saatte tüketimi karşılıyor',
-  puant_kacinma: '17-22 puant diliminden kaçınıyoruz',
-  gece_ucuz: 'Gece tarifesi en ucuz dilim',
-  mahsup_avantaji: 'Evde tüketmek şebekeye satmaktan kârlı',
+// User-facing reason text is Turkish (shown in the UI).
+export const REASON_TEXT = {
+  solar_surplus: 'Güneş üretimi bu saatte tüketimi karşılıyor',
+  avoid_peak: '17-22 puant diliminden kaçınıyoruz',
+  cheap_night: 'Gece tarifesi en ucuz dilim',
+  netmeter_edge: 'Evde tüketmek şebekeye satmaktan kârlı',
 };
