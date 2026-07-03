@@ -17,7 +17,8 @@ import sys
 
 import httpx
 
-URL = "https://re.jrc.ec.europa.eu/api/v5_2/seriescalc"
+# v5_3: SARAH3 veritabanı, 2005-2023 saatlik seri (v5_2 2020'de biter)
+URL = "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc"
 
 
 def cek(enlem: float, boylam: float, yil_bas: int, yil_son: int) -> list[dict]:
@@ -27,7 +28,8 @@ def cek(enlem: float, boylam: float, yil_bas: int, yil_son: int) -> list[dict]:
         "pvcalculation": 1, "peakpower": 1, "loss": 14,
         "outputformat": "json",
     }, timeout=120)
-    yanit.raise_for_status()
+    if yanit.status_code != 200:
+        sys.exit(f"PVGIS hatası ({yanit.status_code}): {yanit.text[:200]}")
     return yanit.json()["outputs"]["hourly"]
 
 
