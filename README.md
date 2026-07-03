@@ -18,11 +18,11 @@ Scrum rolleri ekip içinde dağıtılmıştır.
 
 | Rol | İsim | Odak |
 |---|---|---|
-| Product Owner / Developer | *(eklenecek)* | Ürün vizyonu + backlog + üretim modeli (VB) |
-| Scrum Master / Developer | *(eklenecek)* | Süreç + iletişim + tüketim modeli & optimizasyon (VB) |
-| Developer | *(eklenecek)* | Agent mimarisi + model–agent kontratı + müzakere (YZ) |
-| Developer | *(eklenecek)* | Orkestrasyon + Gemini Türkçe öneri + servisler (YZ) |
-| Developer | *(eklenecek)* | Hafıza + mobil/web arayüz + tarife tool'u (YZ) |
+| Product Owner / Developer | Elanur DEMİR | Ürün vizyonu + backlog + üretim modeli (YZ) |
+| Scrum Master / Developer | Meltem ÖZEN | Süreç + iletişim + tüketim modeli & optimizasyon (VB) |
+| Developer | Berkan ÖKSÜZ | Agent mimarisi + model–agent kontratı + müzakere (VB) |
+| Developer | İshak Bedir YORGANCI | Orkestrasyon + Gemini Türkçe öneri + servisler (YZ) |
+| Developer | Kübra GEZİCİ | Hafıza + mobil/web arayüz + tarife tool'u (YZ) |
 
 ## Ürün Açıklaması
 
