@@ -13,14 +13,27 @@ the Turkish-speaking assistant (product behaviour), while the code identifiers
 around them are English.
 """
 
+import inspect
 import logging
 
 from .. import config
 from ..schemas import AssistantResponse, HouseholdProfile
 from . import fallback
 from .context import ToolContext
+from .grounding import ungrounded_numbers
 
 log = logging.getLogger(__name__)
+
+
+def _clean_args(tool, raw: dict) -> dict:
+    """Defensive coercion of LLM-supplied tool args before execution:
+    drop unknown keys, and clamp blocked_hours to valid 0–23 integers."""
+    accepted = set(inspect.signature(tool).parameters)
+    args = {k: v for k, v in raw.items() if k in accepted}
+    if isinstance(args.get("blocked_hours"), list):
+        args["blocked_hours"] = sorted(
+            {int(h) % 24 for h in args["blocked_hours"] if isinstance(h, int | float)})
+    return args
 
 SYSTEM_PROMPT = """Sen Voltaic'sin: Türkiye'deki çatı güneş paneli (çatı-GES) sahibi ev ve
 küçük işletmelere enerji kararı veren kişisel asistan. Sade, samimi Türkçe konuşursun;
@@ -108,7 +121,7 @@ def _gemini_loop(context: ToolContext, message: str) -> str:
         for fc in calls:
             tool = getattr(context, fc.name, None)
             try:
-                result = tool(**dict(fc.args)) if tool else {"error": f"unknown tool {fc.name}"}
+                result = tool(**_clean_args(tool, dict(fc.args))) if tool else {"error": f"unknown tool {fc.name}"}
             except Exception as err:  # a tool error is reported to the agent, loop continues
                 log.exception("Tool error: %s", fc.name)
                 result = {"error": str(err)}
@@ -125,6 +138,14 @@ def assistant_reply(user_id: int, profile: HouseholdProfile, message: str) -> As
     if config.GEMINI_API_KEY:
         try:
             text = _gemini_loop(context, message)
+            # Honesty guard: never ship an LLM reply that invents figures.
+            if context.last_plan is not None:
+                bad = ungrounded_numbers(text, context.last_plan)
+                if bad:
+                    log.warning("Ungrounded numbers in agent reply: %s", bad)
+                    text = fallback.reply(context, message)
+                    return AssistantResponse(reply=text, plan=context.last_plan,
+                                             agent_mode="fallback", tool_calls=context.calls)
             return AssistantResponse(reply=text, plan=context.last_plan,
                                      agent_mode="gemini", tool_calls=context.calls)
         except Exception:

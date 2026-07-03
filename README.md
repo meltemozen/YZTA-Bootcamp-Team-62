@@ -73,7 +73,7 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 - [docs/DEPLOY.md](docs/DEPLOY.md) — çalıştırma, Docker, canlıya alma, demo videosu akışı
 
 **Hızlı başlangıç:** `backend/` → `pip install -r requirements-dev.txt` → `uvicorn app.main:app` ·
-`mobile/` → `npm install` → `npx expo start` (testler: `pytest tests/` — 14/14 · lint: `ruff check .`)
+`mobile/` → `npm install` → `npx expo start` (testler: `pytest tests/` — 20/20 · lint: `ruff check .`)
 
 ---
 
@@ -84,11 +84,12 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 > sonunda hazır. Bu yüzden orijinal plandaki "iskelet" (S1) ve "karar zekası" (S2)
 > işleri Sprint 1 altında birleştirilip **tamamlandı** olarak raporlandı; Sprint 2
 > ve 3, geriye kalan **gerçek** işe (baseline → LightGBM model yükseltmesi,
-> değerlendirme, canlıya alma, teslim) göre yeniden yazıldı. Toplam ≈ **100 SP**
-> (S1: 45 · S2: 34 · S3: 21).
+> değerlendirme, canlıya alma, teslim) göre yeniden yazıldı. Toplam ≈ **103 SP**
+> (S1: 48 · S2: 34 · S3: 21). Ek teknik derinlik backlog'u için
+> [docs/SPRINTS.md](docs/SPRINTS.md) Trello kartlarına hazır açıklamalar içerir.
 
 <details open>
-<summary><h2>Sprint 1 — Temel, Kontrat ve Çalışan Ürün (19 Haziran – 5 Temmuz) · 45 SP · ✅ TESLİM</h2></summary>
+<summary><h2>Sprint 1 — Temel, Kontrat ve Çalışan Ürün (19 Haziran – 5 Temmuz) · 48 SP · ✅ TESLİM</h2></summary>
 
 **Sprint hedefi:** Uçtan uca çalışan ürün; model–agent kontratı kilitli; baseline
 modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tabanı.
@@ -103,6 +104,7 @@ modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tab
 | S1-6 | Gemini function-calling agent + kural-tabanlı fallback + **müzakere döngüsü** (itiraz → hafıza → yeniden planla) | YZ | 8 | ✅ |
 | S1-7 | Mobil + web uygulaması (Expo tek kod tabanı: onboarding, plan, asistan, rapor, ayarlar + grafik + marka) | YZ | 8 | ✅ |
 | S1-8 | Proaktif uyarılar + karşı-olgusal ay sonu raporu + CO₂/çevre katmanı + **14 test** & uçtan uca doğrulama | Ortak | 5 | ✅ |
+| S1-9 | Grounding guard + agent eval suite + API sağlamlaştırma (20 test, güvenli hata cevabı, grounded fallback) | YZ | 3 | ✅ |
 
 **Tamamlanan (kanıt):** yukarıdaki ekran görüntüleri Sprint 1 sonundaki çalışan
 üründen (gerçek Open-Meteo verisi, İzmir). Mevzuat/veri doğrulaması METHOD.md'de

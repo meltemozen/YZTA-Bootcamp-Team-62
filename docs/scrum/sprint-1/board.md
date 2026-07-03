@@ -1,7 +1,7 @@
 # Sprint 1 — Board
 
 **Sprint hedefi:** Uçtan uca çalışan ürün + kilitli model–agent kontratı + temiz
-İngilizce kod tabanı. **45 SP / 45 tamamlandı.**
+İngilizce kod tabanı. **48 SP / 48 tamamlandı.**
 
 ## Board görüntüsü
 
@@ -20,13 +20,14 @@
 | S1-6 Gemini agent + fallback + müzakere | YZ | 8 | `backend/app/agent/*` |
 | S1-7 Mobil + web (Expo, 5 ekran) | YZ | 8 | `mobile/*` |
 | S1-8 Uyarı + karşı-olgusal rapor + CO₂ + testler | Ortak | 5 | `services/*`, `backend/tests/*` |
+| S1-9 Grounding guard + agent eval + API sağlamlaştırma | YZ | 3 | `agent/grounding.py`, `tests/test_agent.py`, `main.py` |
 
 ## Sütun sayıları (sprint sonu)
 
 `Product Backlog: 0 (S1 kapsamı)` · `Todo: 0` · `In Progress: 0` · `In Review: 0`
-· `Done: 8 / 8`
+· `Done: 9 / 9`
 
 > **Not (board temizliği):** Trello'daki eski kartlar orijinal PDF planından birebir
 > kopyalanmıştı ve yapılan işle birebir örtüşmüyordu (ör. "LangGraph agent" yerine
 > **Gemini function-calling** kuruldu; JSON şema kontratı ayrı kart değildi). Board,
-> gerçekte teslim edilen işe göre yukarıdaki 8 karta sadeleştirildi.
+> gerçekte teslim edilen işe göre yukarıdaki 9 karta sadeleştirildi.

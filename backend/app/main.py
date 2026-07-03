@@ -13,10 +13,12 @@ Endpoints map one-to-one to the mobile app screens:
 import json
 import logging
 import os
+import time
 from datetime import date
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from . import config, db
 from .agent import assistant_reply
@@ -51,6 +53,27 @@ _origins = os.getenv("VOLTAIC_CORS_ORIGINS", "*").strip()
 _allow_origins = ["*"] if _origins == "*" else [o.strip() for o in _origins.split(",") if o.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_allow_origins, allow_methods=["*"],
                    allow_headers=["*"])
+
+log = logging.getLogger("voltaic.api")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """One structured log line per request (method, path, status, duration)."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    log.info("%s %s -> %s (%.0f ms)", request.method, request.url.path,
+             response.status_code, duration_ms)
+    return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception(request: Request, exc: Exception):
+    """Never leak a stack trace to the client; log it and return clean JSON.
+    (HTTPException is handled by FastAPI's own handler, so 404s etc. are intact.)"""
+    log.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Sunucuda bir hata oluştu."})
 
 
 # The schema is prepared at import time (works in every environment incl. TestClient)

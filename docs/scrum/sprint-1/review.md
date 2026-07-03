@@ -1,7 +1,7 @@
 # Sprint 1 — Sprint Review
 
 **Tarih:** 5 Temmuz 2026 · **Sprint hedefi:** Uçtan uca çalışan ürün + kilitli
-kontrat + temiz İngilizce kod tabanı. **Sonuç: hedef aşıldı (45/45 SP).**
+kontrat + temiz İngilizce kod tabanı. **Sonuç: hedef aşıldı (48/48 SP).**
 
 ## Teslim edilen artırım (increment)
 
@@ -15,6 +15,8 @@ kontrat + temiz İngilizce kod tabanı. **Sonuç: hedef aşıldı (45/45 SP).**
    Anahtar yoksa kural-tabanlı fallback devrede (ürün asla durmaz).
 4. **Proaktif uyarı** → sorulmadan "yarın güneş bol, çamaşırı öğlene planla".
 5. **Ay sonu raporu** → gerçekleşen tasarruf + karşı-olgusal "kaçırılan fırsat" + CO₂.
+6. **Grounded agent güvenliği** → tool çıktısında olmayan TL/CO₂ sayısı kullanıcıya
+   sızmaz; canlı LLM başarısızsa deterministik fallback devreye girer.
 
 ## Demo kriteri
 
@@ -28,7 +30,7 @@ plan üretiyor ve itiraza göre yeniden planlıyor.
   orkestrasyon) — organik, sonradan yapıştırma değil.
 - **Fonksiyonel yeterlilik (15):** çalışan uçtan uca ürün (mobil + web + API).
 - **Temiz mimari (ekstra 15):** kilitli kontrat, tek noktadan sabitler (`config.py`),
-  İngilizce tutarlı kod tabanı, 14 test.
+  İngilizce tutarlı kod tabanı, 20 test.
 - **Canlıya alınabilirlik (ekstra 10):** Docker hazır; canlı URL Sprint 3'te.
 
 ## Kapsam dışı bırakılan / ertelenen

@@ -27,7 +27,7 @@ Bootcamp: Google YZTA 2026, AI & Data Science category. Delivery 2 Aug 2026.
    changing a function BODY only (see §6), never the signature/schema.
 3. **Never commit secrets.** `GEMINI_API_KEY` is read via `os.getenv` only; `.env`
    is gitignored. No keys in code, tests, or fixtures.
-4. **Keep it working.** Backend has 14 tests + ruff lint; both must stay green
+4. **Keep it working.** Backend has 20 tests + ruff lint; both must stay green
    (CI enforces on every push/PR). Mobile UI must remain runnable.
 
 ## 3. Architecture
@@ -71,7 +71,7 @@ beats exporting — this is why the optimizer shifts loads into solar hours.
 # Backend
 cd backend && pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000      # http://localhost:8000/docs
-python -m pytest tests/ -q                      # 14 tests, no network needed
+python -m pytest tests/ -q                      # 20 tests, no network needed
 ruff check .                                     # lint (CI runs this)
 
 # Mobile (needs node_modules; Turkish UI)
@@ -85,8 +85,8 @@ Env: `GEMINI_API_KEY` (optional), `GEMINI_MODEL`, `VOLTAIC_DB`, `VOLTAIC_CORS_OR
 ## 6. Where we left off & what to work on next
 
 **Done (Sprint 1):** end-to-end working product with **baseline** models, real agent
-(tool-use + memory + negotiation), mobile+web, tests, CI, English codebase. See
-[docs/scrum/sprint-1](docs/scrum/sprint-1/).
+(tool-use + memory + negotiation), mobile+web, grounding guard, agent evals, tests,
+CI, English codebase. See [docs/scrum/sprint-1](docs/scrum/sprint-1/).
 
 **Next (Sprint 2–3):** full backlog with paste-ready descriptions in
 [docs/SPRINTS.md](docs/SPRINTS.md). The highest-value, clearly-scoped extension points:
