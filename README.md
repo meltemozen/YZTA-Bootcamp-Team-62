@@ -80,19 +80,21 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 ![Daily Scrum](docs/gorseller/sprint1_meet.png)
 
 
-**Sprint Board Updates**
+**Sprint Board Ekran Görüntüleri**
 ![Sprint Board Updates](docs/gorseller/sprint1_scrumboard.png)
 
+![Sprint Board Updates](docs/gorseller/sprint1_scrumboard2.png)
 
+![Sprint Board Updates](docs/gorseller/sprint1_burndownChart.png)
 
-## Ekran Görüntüleri
+## Ürün Ekran Görüntüleri
 
 | Onboarding | Günlük Plan | Asistan |
 |---|---|---|
 | ![Onboarding](docs/gorseller/adim1_onboarding.png) | ![Plan](docs/gorseller/adim3_bugun.png) | ![Asistan](docs/gorseller/adim4_asistan.png) |
 
 
-**Sprint Review:** Hangi verisetlerinin kullanılacağı ve API'lerin entegre edilip edilmeyeceği kararlaştırıldı. Model araştırmalarına başlandı. Ürün arayüz tasarımları tamamlandı ve demo planlaması yapıldı.
+**Sprint Review:** Hangi veri setlerinin kullanılacağına karar verilip PVGIS ve Open-Meteo API entegrasyonları yapılarak veri çekme scriptleri yazıldı. FastAPI ile backend iskeleti oluşturuldu ve Expo kullanılarak mobil/web uygulamasının temel sayfaları (onboarding, plan, asistan vb.) kodlandı. Ayrıca agent yapısı için 6 farklı tool geliştirilerek optimizasyon motoru devreye alındı ve kapsamlı testlerle (uçtan uca doğrulama) sistem sağlamlaştırıldı.
 
 **Sprint Retrospective:** Diğer 2 sprintte daha verimli çalışılacağına ve daha planlı toplantı yapılması gerektiğine karar verildi.
 
