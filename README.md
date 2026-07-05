@@ -1,4 +1,4 @@
-# Takım 62 · ⚡ Voltaic
+# Takım 62 · ⚡ WATTRA
 
 > **Çatındaki güneş, akıllıca yönetilsin.**
 > Türkiye'deki çatı-GES sahibi ev ve küçük işletmeler için; üretim ve tüketimi
@@ -30,7 +30,7 @@ Scrum rolleri ekip içinde dağıtılmıştır.
 ne zaman depolayacağını, hangi cihazı ne zaman çalıştıracağını bilmiyor. Üstelik
 **2 Nisan 2026 mevzuat değişikliğiyle mahsuplaşma saatlik hale geldi**: üretimi
 o saat içinde tüketmeyen kullanıcı, sattığı her kWh'te dağıtım bedeli ve vergiler
-kadar (~%30) kaybediyor. Voltaic bu kararı kullanıcı adına veriyor:
+kadar (~%30) kaybediyor. Wattra bu kararı kullanıcı adına veriyor:
 
 **"Çamaşırı yarın 13:00'te at — ~9-14 TL ve 2.9 kg CO₂ (17 km araba yoluna denk) tasarruf, çünkü öğlen üretimin tüketimini karşılıyor."**
 
@@ -77,6 +77,8 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 **Daily Scrum:** Whatsapp üzerinden toplantı saatleri kararlaştırılıp Meet veya Slack üzerinden toplantılar gerçekleştirilmiştir. Bu kısa toplantılarla ekip üyeleri tamamladıkları işleri, yapacakları task'ları ve karşılaştıkları engelleri paylaşarak ilerleme kaydedilmiştir. 
 
+![Sprint 1 Huddle](docs/gorseller/sprint1_huddle.jpeg)
+
 ![Daily Scrum](docs/gorseller/sprint1_meet.png)
 
 
@@ -86,6 +88,8 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 ![Sprint Board Updates](docs/gorseller/sprint1_scrumboard2.png)
 
 ![Sprint Board Updates](docs/gorseller/sprint1_burndownChart.png)
+
+![Sprint 1 System Architecture](docs/gorseller/sprint1_systemarchitecture.png)
 
 ## Ürün Ekran Görüntüleri
 

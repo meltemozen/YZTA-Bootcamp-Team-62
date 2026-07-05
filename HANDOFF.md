@@ -1,10 +1,10 @@
-# HANDOFF — Voltaic (AI agent onboarding)
+# HANDOFF — Wattra (AI agent onboarding)
 
 > Read this first. It gets an AI agent (or a new developer) productive in minutes:
 > what the system is, the rules you must not break, how to verify, where we left
 > off, and what to work on next. Detailed docs are linked inline.
 
-## 1. What Voltaic is
+## 1. What Wattra is?
 
 Agent-based rooftop-solar energy assistant for Turkey. It forecasts a household's
 solar **production** and electricity **consumption**, then — given Turkey's tiered /
