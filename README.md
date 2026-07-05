@@ -13,7 +13,7 @@ adayları belirlenmiştir.)*
 
 ## Takım Üyeleri
 
-Ekip 5 kişidir; herkes aktif geliştirici olarak katkı verir (bootcamp kuralı).
+Ekip 5 kişidir; herkes aktif geliştirici olarak katkı verir.
 Scrum rolleri ekip içinde dağıtılmıştır.
 
 | Rol | İsim | Odak |
@@ -57,42 +57,46 @@ Türkiye'de çatı-GES sahibi (veya kurmayı değerlendiren) **ev kullanıcılar
 **küçük işletmeler** (dükkan, atölye, tarımsal sulama) — teknik bilgisi olmayan,
 faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herkes.
 
-## Ekran Görüntüleri
 
-| Onboarding | Günlük Plan | Asistan |
-|---|---|---|
-| ![Onboarding](docs/gorseller/adim1_onboarding.png) | ![Plan](docs/gorseller/adim3_bugun.png) | ![Asistan](docs/gorseller/adim4_asistan.png) |
-
-## Teknik Dokümantasyon
-
-- [HANDOFF.md](HANDOFF.md) — AI agent / yeni geliştirici hızlı başlangıç (kurallar, mimari, kalınan yer, sonraki iş)
-- [docs/SPRINTS.md](docs/SPRINTS.md) — sprint planı & product backlog (Trello'ya hazır kart açıklamaları)
-- [docs/TEKNIK.md](docs/TEKNIK.md) — mimari, kurulum, depo yapısı, kalan işler
-- [docs/CONTRACT.md](docs/CONTRACT.md) — model–agent tool kontratı (kilitli, v1.2)
-- [docs/METHOD.md](docs/METHOD.md) — veri doğruluğu, mevzuat kaynakları, dürüstlük ilkeleri
-- [docs/DEPLOY.md](docs/DEPLOY.md) — çalıştırma, Docker, canlıya alma, demo videosu akışı
-
-**Hızlı başlangıç:** `backend/` → `pip install -r requirements-dev.txt` → `uvicorn app.main:app` ·
-`mobile/` → `npm install` → `npx expo start` (testler: `pytest tests/` — 20/20 · lint: `ruff check .`)
+## Product Backlog
+[Miro Backlog](https://miro.com/app/board/uXjVHA5ySr8=/?share_link_id=612821934232)
 
 ---
 
 # Sprintler
 
-> **Sprint yapısı hakkında not.** Planlanan iş takvimin önünde ilerledi: baseline
-> modelli **uçtan uca çalışan ürün** ve **temiz İngilizce kod tabanı** Sprint 1
-> sonunda hazır. Bu yüzden orijinal plandaki "iskelet" (S1) ve "karar zekası" (S2)
-> işleri Sprint 1 altında birleştirilip **tamamlandı** olarak raporlandı; Sprint 2
-> ve 3, geriye kalan **gerçek** işe (baseline → LightGBM model yükseltmesi,
-> değerlendirme, canlıya alma, teslim) göre yeniden yazıldı. Toplam ≈ **103 SP**
-> (S1: 48 · S2: 34 · S3: 21). Ek teknik derinlik backlog'u için
-> [docs/SPRINTS.md](docs/SPRINTS.md) Trello kartlarına hazır açıklamalar içerir.
-
 <details open>
-<summary><h2>Sprint 1 — Temel, Kontrat ve Çalışan Ürün (19 Haziran – 5 Temmuz) · 48 SP · ✅ TESLİM</h2></summary>
+<summary><h2>Sprint 1 (19 Haziran – 5 Temmuz) · 48 SP</h2></summary>
 
-**Sprint hedefi:** Uçtan uca çalışan ürün; model–agent kontratı kilitli; baseline
-modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tabanı.
+**Sprint Notları:** Bu sprint'te hem projenin temeli atıldı hem de tüm ekibin uyumlu çalışabilmesi için gerekli düzenlemeler yapıldı. Takım rolleri belirlendi. Projede yapılacak tasklar belirlendi ve product backlog olarak boarda eklendi. Repo, GitHub & proje altyapısı düzenlendi. Model-agent kontratı oluşturuldu ve tüm ekibin uyumlu çalışabilmesi için gerekli düzenlemeler yapıldı.
+
+**Tamamlanan Puan:** Sprint 1 için 48 puanlık iş yapılacağı belirlenmiştir ve 48 puanlık iş tamamlanmıştır.
+
+**Tahmin Mantığı:** Yapılacak taskların her biri zorluk, öncelik ve yapılma süresine bağlı olarak puanlandırılmıştır. Tüm sprintler için toplam puan 103'tür. Sprint 1 için 48 puan planlanmış ve 48 puan tamamlanmıştır. Sprint 1'de daha çok projenin iskeletinin oluşturulması, temel fonksiyonların yazılması ve agent'ın test edilmesi hedeflenmiştir. Bu nedenle diğer sprintlere göre daha çok puan verilmiştir.
+
+
+**Daily Scrum:** Whatsapp üzerinden toplantı saatleri kararlaştırılıp Meet veya Slack üzerinden toplantılar gerçekleştirilmiştir. Bu kısa toplantılarla ekip üyeleri tamamladıkları işleri, yapacakları task'ları ve karşılaştıkları engelleri paylaşarak ilerleme kaydedilmiştir. 
+
+![Daily Scrum](docs/gorseller/sprint1_meet.png)
+
+
+**Sprint Board Ekran Görüntüleri**
+![Sprint Board Updates](docs/gorseller/sprint1_scrumboard.png)
+
+![Sprint Board Updates](docs/gorseller/sprint1_scrumboard2.png)
+
+![Sprint Board Updates](docs/gorseller/sprint1_burndownChart.png)
+
+## Ürün Ekran Görüntüleri
+
+| Onboarding | Günlük Plan | Asistan |
+|---|---|---|
+| ![Onboarding](docs/gorseller/adim1_onboarding.png) | ![Plan](docs/gorseller/adim3_bugun.png) | ![Asistan](docs/gorseller/adim4_asistan.png) |
+
+
+**Sprint Review:** Hangi veri setlerinin kullanılacağına karar verilip PVGIS ve Open-Meteo API entegrasyonları yapılarak veri çekme scriptleri yazıldı. FastAPI ile backend iskeleti oluşturuldu ve Expo kullanılarak mobil/web uygulamasının temel sayfaları (onboarding, plan, asistan vb.) kodlandı. Ayrıca agent yapısı için 6 farklı tool geliştirilerek optimizasyon motoru devreye alındı ve kapsamlı testlerle (uçtan uca doğrulama) sistem sağlamlaştırıldı.
+
+**Sprint Retrospective:** Diğer 2 sprintte daha verimli çalışılacağına ve daha planlı toplantı yapılması gerektiğine karar verildi.
 
 | # | Görev | Ekip | SP | Durum |
 |---|---|---|---|---|
@@ -106,19 +110,10 @@ modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tab
 | S1-8 | Proaktif uyarılar + karşı-olgusal ay sonu raporu + CO₂/çevre katmanı + **14 test** & uçtan uca doğrulama | Ortak | 5 | ✅ |
 | S1-9 | Grounding guard + agent eval suite + API sağlamlaştırma (20 test, güvenli hata cevabı, grounded fallback) | YZ | 3 | ✅ |
 
-**Tamamlanan (kanıt):** yukarıdaki ekran görüntüleri Sprint 1 sonundaki çalışan
-üründen (gerçek Open-Meteo verisi, İzmir). Mevzuat/veri doğrulaması METHOD.md'de
-(2026 tarifeleri, RG 02.04.2026 saatlik mahsup, ETKB emisyon faktörü).
-
-- **Daily Scrum:** [docs/scrum/sprint-1/daily.md](docs/scrum/sprint-1/daily.md)
-- **Sprint Board:** [docs/scrum/sprint-1/board.md](docs/scrum/sprint-1/board.md) *(ekran görüntüsü hafta sonu eklenecek)*
-- **Sprint Review:** [docs/scrum/sprint-1/review.md](docs/scrum/sprint-1/review.md)
-- **Sprint Retrospective:** [docs/scrum/sprint-1/retrospective.md](docs/scrum/sprint-1/retrospective.md)
-
 </details>
 
 <details>
-<summary><h2>Sprint 2 — Gerçek ML & Agent Sağlamlaştırma (6 – 19 Temmuz) · 34 SP · 🔜 PLANLANDI</h2></summary>
+<summary><h2>Sprint 2 (6 – 19 Temmuz) · 34 SP</h2></summary>
 
 **Hedef:** Baseline modelleri gerçek makine öğrenmesiyle değiştir; agent'ı canlı
 Gemini anahtarıyla sağlamlaştır. Kontrat sabit — yalnız tool gövdeleri değişir.
@@ -138,7 +133,7 @@ tahminiyle üretiliyor; kullanıcı itirazıyla değişiyor; hafıza tercihi hat
 </details>
 
 <details>
-<summary><h2>Sprint 3 — Değerlendirme, Canlıya Alma ve Teslim (20 Temmuz – 2 Ağustos) · 21 SP · 🔜 PLANLANDI</h2></summary>
+<summary><h2>Sprint 3 (20 Temmuz – 2 Ağustos) · 21 SP </h2></summary>
 
 **Hedef:** Modelleri değerlendir, ürünü canlıya al, teslim paketini hazırla.
 
