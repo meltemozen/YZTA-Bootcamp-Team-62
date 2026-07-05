@@ -89,7 +89,7 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 **Sistem Mimari Şeması**
 ![Sprint 1 System Architecture](docs/gorseller/sprint1_systemarchitecture.png)
 
-## Ürün Ekran Görüntüleri
+**Ürün Ekran Görüntüleri**
 
 | Onboarding | Günlük Plan | Asistan |
 |---|---|---|
