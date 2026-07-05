@@ -6,9 +6,6 @@
 > "şu cihazı şu saatte çalıştır" diye sade Türkçe konuşan, alışkanlıkları öğrenen
 > ve tasarrufu **TL + CO₂** olarak kanıtlayan agent tabanlı kişisel enerji asistanı.
 
-*(Ürün ismi değerlendirme aşamasındadır; marka çakışması nedeniyle yeni isim
-adayları belirlenmiştir.)*
-
 ---
 
 ## Takım Üyeleri
@@ -82,13 +79,14 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 ![Daily Scrum](docs/gorseller/sprint1_meet.png)
 
 
-**Sprint Board Ekran Görüntüleri**
+**Scrum Board Ekran Görüntüleri**
 ![Sprint Board Updates](docs/gorseller/sprint1_scrumboard.png)
 
 ![Sprint Board Updates](docs/gorseller/sprint1_scrumboard2.png)
 
 ![Sprint Board Updates](docs/gorseller/sprint1_burndownChart.png)
 
+**Sistem Mimari Şeması**
 ![Sprint 1 System Architecture](docs/gorseller/sprint1_systemarchitecture.png)
 
 ## Ürün Ekran Görüntüleri
