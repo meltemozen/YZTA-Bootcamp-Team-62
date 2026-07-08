@@ -34,7 +34,7 @@ export function LogoMark({ size = 34 }) {
 export function Wordmark({ size = 24 }) {
   return (
     <Text style={{ fontFamily: font.title, fontSize: size, color: colors.ink, letterSpacing: 0.5 }}>
-      volta<Text style={{ color: colors.amber }}>ic</Text>
+      watt<Text style={{ color: colors.amber }}>ra</Text>
     </Text>
   );
 }
