@@ -142,7 +142,7 @@ export default function Today({ userId }) {
             <View style={card}>
               <Text style={text.body}>
                 Planlanacak esnek cihaz yok. Ayarlar'dan çamaşır makinesi gibi cihazlar ekle —
-                Voltaic onları en ucuz saate yerleştirsin.
+                Wattra onları en ucuz saate yerleştirsin.
               </Text>
             </View>
           ) : (

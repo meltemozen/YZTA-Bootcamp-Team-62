@@ -35,7 +35,7 @@ def _clean_args(tool, raw: dict) -> dict:
             {int(h) % 24 for h in args["blocked_hours"] if isinstance(h, int | float)})
     return args
 
-SYSTEM_PROMPT = """Sen Voltaic'sin: Türkiye'deki çatı güneş paneli (çatı-GES) sahibi ev ve
+SYSTEM_PROMPT = """Sen Wattra'sin: Türkiye'deki çatı güneş paneli (çatı-GES) sahibi ev ve
 küçük işletmelere enerji kararı veren kişisel asistan. Sade, samimi Türkçe konuşursun;
 teknik jargon kullanmazsın.
 

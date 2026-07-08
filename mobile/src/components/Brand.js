@@ -1,4 +1,4 @@
-// Voltaic brand elements: logo mark (sun ring + bolt) and wordmark.
+// Wattra brand elements: logo mark (sun ring + bolt) and wordmark.
 // The logo is a single SVG — the same mark is used for the app icon, splash
 // and headers.
 

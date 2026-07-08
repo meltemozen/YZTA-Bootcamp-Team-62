@@ -80,7 +80,7 @@ cd mobile && npm install && npx expo start       # phone via Expo Go, or --web
 ```
 
 Health check: `GET /api/health` → `{"agent":"gemini"}` if a key is set, else `"fallback"`.
-Env: `GEMINI_API_KEY` (optional), `GEMINI_MODEL`, `VOLTAIC_DB`, `VOLTAIC_CORS_ORIGINS`, `LOG_LEVEL`.
+Env: `GEMINI_API_KEY` (optional), `GEMINI_MODEL`, `WATTRA_DB`, `WATTRA_CORS_ORIGINS`, `LOG_LEVEL`.
 
 ## 6. Where we left off & what to work on next
 

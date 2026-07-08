@@ -1,4 +1,4 @@
-"""Voltaic API — FastAPI application.
+"""Wattra API — FastAPI application.
 
 Endpoints map one-to-one to the mobile app screens:
   POST /api/register        → Onboarding
@@ -43,18 +43,18 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-app = FastAPI(title="Voltaic API", version=APP_VERSION,
+app = FastAPI(title="Wattra API", version=APP_VERSION,
               description="Rooftop-PV energy assistant — tailored for Turkey")
 
-# CORS origins are env-driven for production: set VOLTAIC_CORS_ORIGINS to a
+# CORS origins are env-driven for production: set WATTRA_CORS_ORIGINS to a
 # comma-separated allow-list (e.g. the deployed web URL). Defaults to "*" for
 # local development and Expo Go.
-_origins = os.getenv("VOLTAIC_CORS_ORIGINS", "*").strip()
+_origins = os.getenv("WATTRA_CORS_ORIGINS", "*").strip()
 _allow_origins = ["*"] if _origins == "*" else [o.strip() for o in _origins.split(",") if o.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_allow_origins, allow_methods=["*"],
                    allow_headers=["*"])
 
-log = logging.getLogger("voltaic.api")
+log = logging.getLogger("wattra.api")
 
 
 @app.middleware("http")

@@ -23,7 +23,7 @@ export default function Assistant({ userId }) {
     {
       role: 'assistant',
       text:
-        'Merhaba! Ben Voltaic. Panelinin üretimini, tüketimini ve tarifeni izliyorum. ' +
+        'Merhaba! Ben Wattra. Panelinin üretimini, tüketimini ve tarifeni izliyorum. ' +
         'Bana "yarın için plan yap" diyebilir ya da alışkanlıklarını söyleyebilirsin — hatırlarım.',
     },
   ]);

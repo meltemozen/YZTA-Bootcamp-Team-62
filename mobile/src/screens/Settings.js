@@ -82,7 +82,7 @@ export default function Settings({ userId, onReset }) {
       <View style={{ alignItems: 'center', marginTop: spacing.m, gap: 8 }}>
         <LogoMark size={28} />
         <Text style={[text.small, { textAlign: 'center', lineHeight: 17 }]}>
-          Voltaic v0.1 · YZTA Bootcamp Takım 62{'\n'}
+          Wattra v0.1 · YZTA Bootcamp Takım 62{'\n'}
           Tarife: EPDK · Hava: Open-Meteo · Işınım: PVGIS
         </Text>
       </View>

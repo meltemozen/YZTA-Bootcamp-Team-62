@@ -1,4 +1,4 @@
-"""Voltaic configuration — ALL energy constants and their sources live HERE.
+"""Wattra configuration — ALL energy constants and their sources live HERE.
 
 No price/factor constant exists anywhere else in the code. Each value carries
 its source and date; after an EPDK board decision (usually Jan/Apr/Jul) this
@@ -24,7 +24,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # --- Database ---
-DB_PATH = os.getenv("VOLTAIC_DB", os.path.join(os.path.dirname(__file__), "..", "voltaic.db"))
+DB_PATH = os.getenv("WATTRA_DB", os.path.join(os.path.dirname(__file__), "..", "wattra.db"))
 
 # --- EPDK tariff (end-user price incl. taxes, TL/kWh) ---
 # Source: EPDK 4 April 2026 tariff table; sector compilations (June 2026).

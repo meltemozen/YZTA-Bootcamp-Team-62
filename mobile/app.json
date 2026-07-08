@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Voltaic",
-    "slug": "voltaic",
+    "name": "Wattra",
+    "slug": "wattra",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -10,18 +10,18 @@
       "backgroundColor": "#0b0f1a"
     },
     "android": {
-      "package": "com.team62.voltaic",
+      "package": "com.team62.wattra",
       "adaptiveIcon": {
         "backgroundColor": "#0b0f1a"
       }
     },
     "ios": {
-      "bundleIdentifier": "com.team62.voltaic"
+      "bundleIdentifier": "com.team62.wattra"
     },
     "web": {
       "bundler": "metro",
       "output": "single",
-      "name": "Voltaic — Çatı-GES Enerji Asistanı"
+      "name": "Wattra — Çatı-GES Enerji Asistanı"
     },
     "extra": {
       "apiUrl": "http://192.168.1.100:8000"
