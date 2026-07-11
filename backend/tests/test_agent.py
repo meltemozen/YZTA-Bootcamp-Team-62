@@ -18,7 +18,11 @@ config.DB_PATH = os.environ["WATTRA_DB"]
 
 from app import db  # noqa: E402
 from app.agent import assistant_reply, orchestrator  # noqa: E402
-from app.agent.grounding import ungrounded_dates, ungrounded_entities, ungrounded_numbers  # noqa: E402
+from app.agent.grounding import (  # noqa: E402
+    ungrounded_dates,
+    ungrounded_entities,
+    ungrounded_numbers,
+)
 from app.schemas import Device, HouseholdProfile  # noqa: E402
 
 
