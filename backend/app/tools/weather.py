@@ -58,6 +58,7 @@ def _synthetic(day: date) -> dict:
 
 def get_weather(lat: float, lon: float, day: date) -> Weather:
     key = f"{lat:.2f},{lon:.2f},{day.isoformat()}"
+    source = "live"
     try:
         resp = httpx.get(_URL, params={
             "latitude": lat,
@@ -77,11 +78,14 @@ def get_weather(lat: float, lon: float, day: date) -> Weather:
         _write_cache(key, data)
     except (httpx.HTTPError, KeyError) as err:
         log.warning("Open-Meteo unreachable (%s), using cache/synthetic", err)
-        data = _read_cache(key) or _synthetic(day)
+        cached = _read_cache(key)
+        data = cached or _synthetic(day)
+        source = "cached" if cached else "synthetic"
 
     return Weather(
         date=day,
         irradiance_wm2=[float(x or 0) for x in data["irradiance"]],
         temp_c=[float(x or 15) for x in data["temp"]],
         cloud_pct=[float(x or 0) for x in data["cloud"]],
+        source=source,
     )
