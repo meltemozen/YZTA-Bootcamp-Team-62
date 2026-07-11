@@ -23,10 +23,13 @@ _REASON_TEXT = {
 _HOUR_PATTERN = re.compile(r"(\d{1,2})[:.]?(\d{2})?\s*(?:'?[dt]en|'?[dt]an)?\s*(sonra|önce|once)", re.IGNORECASE)
 
 _PREFERENCE_HINTS = ("evde yokum", "evde olmuyorum", "misafir", "istemiyorum",
-                     "olmaz", "uyuyor", "gürültü", "gurultu", "sonra", "önce", "once")
+                     "olmaz", "uyuyor", "gürültü", "gurultu", "sonra", "önce", "once",
+                     "dışarıda", "disarida", "yokum", "tatil", "şehir dışı", "sehir disi")
 
 
-def _is_preference(message: str) -> bool:
+def is_preference(message: str) -> bool:
+    """Heuristic: does the message state a habit/constraint/objection? Shared
+    with the orchestrator's persistence backstop (see rule 4 there)."""
     lower = message.lower()
     return any(hint in lower for hint in _PREFERENCE_HINTS)
 
@@ -54,7 +57,14 @@ def reply(context: ToolContext, message: str) -> str:
     day = "tomorrow" if "yarın" in message.lower() or "yarin" in message.lower() else "today"
 
     blocked = []
-    if message and _is_preference(message):
+    similar_pref = None
+    if message and is_preference(message):
+        # Search BEFORE writing so the new message can't match itself.
+        hits = context.search_preferences(message.strip())
+        similar_pref = next(
+            (h for h in hits
+             if (h.get("similarity") or 0) >= 0.3 and h["text"].strip() != message.strip()),
+            None)
         context.write_memory(message.strip())
         blocked = _blocked_hours(message)
 
@@ -91,4 +101,6 @@ def reply(context: ToolContext, message: str) -> str:
               f"{summary['co2_kg']:.1f} kg CO2 önleniyor{env_suffix}.")
     if blocked:
         header += " Tercihlerini dikkate aldım (bazı saatler hariç tutuldu)."
+    if similar_pref:
+        header += f" Benzer bir tercihini zaten biliyordum: \"{similar_pref['text']}\"."
     return header + "\n\n" + "\n".join(f"• {s}" for s in lines)

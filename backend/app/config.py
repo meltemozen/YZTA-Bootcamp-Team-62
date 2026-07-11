@@ -26,6 +26,14 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 # --- Database ---
 DB_PATH = os.getenv("WATTRA_DB", os.path.join(os.path.dirname(__file__), "..", "wattra.db"))
 
+# --- Semantic memory (S2-5) ---
+# Optional Chroma + Gemini-embedding layer over the SQLite preference store.
+# Degrades to keyword search when the flag is off, chromadb is not installed
+# or there is no GEMINI_API_KEY — the product never depends on it.
+SEMANTIC_MEMORY_ENABLED = os.getenv("WATTRA_SEMANTIC_MEMORY", "1").lower() in ("1", "true", "yes", "on")
+CHROMA_PATH = os.getenv("WATTRA_CHROMA_PATH", os.path.join(os.path.dirname(__file__), "..", "chroma"))
+GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
+
 # --- EPDK tariff (end-user price incl. taxes, TL/kWh) ---
 # Source: EPDK 4 April 2026 tariff table; sector compilations (June 2026).
 # Three-zone VAT-excl. base: day 4.38, peak 6.17, night 2.94
