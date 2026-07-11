@@ -28,8 +28,11 @@ def _write_cache(key: str, data: dict) -> None:
     try:
         current = {}
         if os.path.exists(_CACHE):
-            with open(_CACHE, encoding="utf-8") as f:
-                current = json.load(f)
+            try:
+                with open(_CACHE, encoding="utf-8") as f:
+                    current = json.load(f)
+            except json.JSONDecodeError:
+                current = {}  # corrupt cache (e.g. interrupted write) — start fresh
         current[key] = data
         with open(_CACHE, "w", encoding="utf-8") as f:
             json.dump(current, f)
