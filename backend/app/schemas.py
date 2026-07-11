@@ -58,7 +58,10 @@ class Weather(BaseModel):
     current_irradiance_wm2: float | None = None
     current_temp_c: float | None = None
     current_cloud_pct: float | None = None
-    source: str = "forecast"
+    source: Literal["live", "cached", "synthetic"] = Field(
+        default="live",
+        description="'live' = fresh Open-Meteo call, 'cached' = last known good response, "
+                    "'synthetic' = no network/cache at all, seasonal clear-sky estimate")
 
 
 class ProductionForecast(BaseModel):

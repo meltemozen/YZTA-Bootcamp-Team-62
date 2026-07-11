@@ -19,7 +19,7 @@ config.DB_PATH = os.environ["WATTRA_DB"]
 from app import db  # noqa: E402
 from app.agent import assistant_reply, orchestrator  # noqa: E402
 from app.agent.context import ToolContext  # noqa: E402
-from app.agent.grounding import ungrounded_numbers  # noqa: E402
+from app.agent.grounding import ungrounded_dates, ungrounded_entities, ungrounded_numbers  # noqa: E402
 from app.agent.local_llm import ollama_loop  # noqa: E402
 from app.schemas import Device, HouseholdProfile  # noqa: E402
 
@@ -73,6 +73,51 @@ def test_grounding_catches_a_hallucinated_figure():
     r = assistant_reply(uid, db.get_user(uid), "bugün plan")
     tampered = r.reply + " Ayrıca bu ay 999 TL daha kazanacaksın."
     assert 999.0 in ungrounded_numbers(tampered, r.plan)
+
+
+def test_grounding_catches_a_hallucinated_battery_claim():
+    """_profile() has no battery (battery_kwh=0), so optimize never emits a
+    battery item — a schedule built only from hour values (0-24) would sail
+    past ungrounded_numbers untouched; ungrounded_entities must catch it."""
+    uid = _new_user()
+    r = assistant_reply(uid, db.get_user(uid), "bugün plan")
+    assert not any(i.type.startswith("battery") for i in r.plan.items)
+    tampered = r.reply + " Bataryanı gece 02-06 arası şarj et."
+    assert "batarya" in ungrounded_entities(tampered, r.plan)
+
+
+def test_grounding_catches_a_hallucinated_weekday():
+    uid = _new_user()
+    r = assistant_reply(uid, db.get_user(uid), "bugün plan")
+    weekdays = ("pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi", "pazar")
+    wrong_day = next(d for d in weekdays if d != weekdays[r.plan.date.weekday()])
+    tampered = f"{r.reply} {wrong_day.capitalize()} için planladım."
+    assert ungrounded_dates(tampered, r.plan) == [wrong_day]
+
+
+def test_grounding_ignores_a_hedged_weekday_mention():
+    """The system prompt tells the agent to name an unresolved weekday while
+    disclosing the guess; that disclosure must not itself trip the guard."""
+    uid = _new_user()
+    r = assistant_reply(uid, db.get_user(uid), "bugün plan")
+    tampered = f"{r.reply} Salı tarihini net çözemedim, o yüzden yarın için planladım."
+    assert ungrounded_dates(tampered, r.plan) == []
+
+
+def test_gemini_battery_hallucination_falls_back(monkeypatch):
+    uid = _new_user()
+
+    def fake_gemini_loop(context, message):
+        context.optimize("today")
+        return "Bataryanı gece 02-06 arası şarj etmeni öneririm."
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(orchestrator, "_gemini_loop", fake_gemini_loop)
+
+    r = orchestrator.assistant_reply(uid, db.get_user(uid), "bugün plan")
+
+    assert r.agent_mode == "fallback"
+    assert "02-06" not in r.reply
 
 
 def test_gemini_ungrounded_reply_falls_back(monkeypatch):
@@ -163,6 +208,30 @@ def test_ollama_loop_executes_tool_calls(monkeypatch):
     assert "Yerel model" in text
     assert context.last_plan is not None
     assert any("optimize" in c for c in context.calls)
+
+
+def test_partial_gemini_crash_does_not_duplicate_tool_calls(monkeypatch):
+    """If Gemini walks part of the chain then crashes, fallback.reply() re-runs
+    its own fixed pipeline on the SAME context. The re-run tool calls are real
+    (cheap/cached, no wasted network calls) but showing "tool(date)" twice in
+    the transparency footer is just noise — ToolContext.calls must dedupe it."""
+    uid = _new_user()
+
+    def fake_gemini_loop(context, message):
+        context.get_weather("today")
+        context.forecast_production("today")
+        raise RuntimeError("simulated Gemini outage mid-chain")
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(orchestrator, "_gemini_loop", fake_gemini_loop)
+
+    r = orchestrator.assistant_reply(uid, db.get_user(uid), "bugün plan")
+
+    assert r.agent_mode == "fallback"
+    assert len(r.tool_calls) == len(set(r.tool_calls)), \
+        f"duplicate entries in transparency log: {r.tool_calls}"
+    assert any("get_weather" in c for c in r.tool_calls)
+    assert any("optimize" in c for c in r.tool_calls)
 
 
 def test_transparency_tool_calls_exposed():
