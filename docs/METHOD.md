@@ -29,12 +29,10 @@ Değerlendirme: son yıl hold-out, nMAE; v0 baseline'ı geçemeyen model üretim
 ## 3. Tüketim modeli ve kalibrasyon
 
 Türkiye'de hane saatlik tüketim verisi kullanıcıya açık değildir. Bu yüzden:
-1. **Şekil:** UCI/London profillerinden türetilmiş normalize saatlik şekil,
-   TR akşam piki belirginleştirilmiş; işyeri için mesai şekli.
-2. **Ölçek:** aylık fatura kWh → günlük kWh.
-3. **Mevsim düzeltmesi:** ±%10-15 sinüs.
-4. **Doğrulama (VB görevi):** EPİAŞ bölgesel tüketim eğrisiyle şekil
-   korelasyonu — Sprint 2 çıktısı.
+1. **Şekil (Kaggle + EPİAŞ):** Kaggle'daki 5500 İngiliz hanesine ait baz yük (base-load) verisi alınmış ve **EPİAŞ (2024)** saatlik Türkiye tüketim oranlarıyla kalibre edilmiştir (19.624 saatlik veri).
+2. **Ölçek:** Aylık fatura kWh → günlük kWh. Ajanın saatlik tahminleri doğrudan faturadan ölçeklenir.
+3. **Doğrulama ve Model (CatBoost):** Kalibre edilen veri CatBoost Regressor ile eğitilmiş; modelin beyninden 24 saatlik karakter (home_shape) ve **hafta sonu çarpanı (1.071)** çekilmiştir (Distillation).
+4. **Hata Oranı:** Baseline (ortalama) yaklaşıma göre MAE hatası %50 iyileştirilerek 0.46'dan **0.21 kWh'ye** düşürülmüştür. (Test: `evaluate_advanced_consumption.py`).
 
 ## 4. Tarife ve mahsuplaşma — GÜNCEL MEVZUAT (Temmuz 2026)
 

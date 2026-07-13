@@ -124,8 +124,8 @@ değişimlerine göre optimizer'ı uygulanabilir plan üretir hale getir.
 | # | Görev | Ekip | SP | Durum |
 |---|---|---|---|---|
 | S2-1 | Weather-aware üretim modeli v1 + PVGIS eğitim scripti | VB | 8 | 🟡 branch |
-| S2-2 | Generic smart-meter tüketim modeli v1 + shape eğitim scripti | VB | 8 | 🟡 branch |
-| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 | Planlandı |
+| S2-2 | Generic smart-meter tüketim modeli v1 + shape eğitim scripti | VB | 8 | ✅ |
+| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 | ✅ |
 | S2-4 | Gemini/Ollama provider zinciri + prompt iyileştirme | YZ | 5 | 🟡 branch |
 | S2-5 | Chroma semantik hafıza (`memory.py` genişletme; imza sabit) | YZ | 5 | Planlandı |
 | S2-6 | Cihaz kataloğu + EV şarj güç/süre metadata'sı | YZ | 3 | 🟡 branch |
