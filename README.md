@@ -1,4 +1,4 @@
-# Takım 62 · ⚡ Voltaic
+# Takım 62 · ⚡ WATTRA
 
 > **Çatındaki güneş, akıllıca yönetilsin.**
 > Türkiye'deki çatı-GES sahibi ev ve küçük işletmeler için; üretim ve tüketimi
@@ -6,23 +6,20 @@
 > "şu cihazı şu saatte çalıştır" diye sade Türkçe konuşan, alışkanlıkları öğrenen
 > ve tasarrufu **TL + CO₂** olarak kanıtlayan agent tabanlı kişisel enerji asistanı.
 
-*(Ürün ismi değerlendirme aşamasındadır; marka çakışması nedeniyle yeni isim
-adayları belirlenmiştir.)*
-
 ---
 
 ## Takım Üyeleri
 
-Ekip 5 kişidir; herkes aktif geliştirici olarak katkı verir (bootcamp kuralı).
+Ekip 5 kişidir; herkes aktif geliştirici olarak katkı verir.
 Scrum rolleri ekip içinde dağıtılmıştır.
 
 | Rol | İsim | Odak |
 |---|---|---|
-| Product Owner / Developer | *(eklenecek)* | Ürün vizyonu + backlog + üretim modeli (VB) |
-| Scrum Master / Developer | *(eklenecek)* | Süreç + iletişim + tüketim modeli & optimizasyon (VB) |
-| Developer | *(eklenecek)* | Agent mimarisi + model–agent kontratı + müzakere (YZ) |
-| Developer | *(eklenecek)* | Orkestrasyon + Gemini Türkçe öneri + servisler (YZ) |
-| Developer | *(eklenecek)* | Hafıza + mobil/web arayüz + tarife tool'u (YZ) |
+| Product Owner / Developer | Elanur DEMİR | Ürün vizyonu + backlog + üretim modeli (YZ) |
+| Scrum Master / Developer | Meltem ÖZEN | Süreç + iletişim + tüketim modeli & optimizasyon (VB) |
+| Developer | Berkan ÖKSÜZ | Agent mimarisi + model–agent kontratı + müzakere (VB) |
+| Developer | İshak Bedir YORGANCI | Orkestrasyon + Gemini Türkçe öneri + servisler (YZ) |
+| Developer | Kübra GEZİCİ | Hafıza + mobil/web arayüz + tarife tool'u (YZ) |
 
 ## Ürün Açıklaması
 
@@ -30,7 +27,7 @@ Scrum rolleri ekip içinde dağıtılmıştır.
 ne zaman depolayacağını, hangi cihazı ne zaman çalıştıracağını bilmiyor. Üstelik
 **2 Nisan 2026 mevzuat değişikliğiyle mahsuplaşma saatlik hale geldi**: üretimi
 o saat içinde tüketmeyen kullanıcı, sattığı her kWh'te dağıtım bedeli ve vergiler
-kadar (~%30) kaybediyor. Voltaic bu kararı kullanıcı adına veriyor:
+kadar (~%30) kaybediyor. Wattra bu kararı kullanıcı adına veriyor:
 
 **"Çamaşırı yarın 13:00'te at — ~9-14 TL ve 2.9 kg CO₂ (17 km araba yoluna denk) tasarruf, çünkü öğlen üretimin tüketimini karşılıyor."**
 
@@ -57,45 +54,51 @@ Türkiye'de çatı-GES sahibi (veya kurmayı değerlendiren) **ev kullanıcılar
 **küçük işletmeler** (dükkan, atölye, tarımsal sulama) — teknik bilgisi olmayan,
 faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herkes.
 
-## Ekran Görüntüleri
 
-| Onboarding | Günlük Plan | Asistan |
-|---|---|---|
-| ![Onboarding](docs/gorseller/adim1_onboarding.png) | ![Plan](docs/gorseller/adim3_bugun.png) | ![Asistan](docs/gorseller/adim4_asistan.png) |
-
-## Teknik Dokümantasyon
-
-- [HANDOFF.md](HANDOFF.md) — AI agent / yeni geliştirici hızlı başlangıç (kurallar, mimari, kalınan yer, sonraki iş)
-- [docs/SPRINTS.md](docs/SPRINTS.md) — sprint planı & product backlog (Trello'ya hazır kart açıklamaları)
-- [docs/SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) — sistem mimarisi, ML katmanı, enerji optimizasyonu ve Türkiye uyarlaması
-- [docs/research/ENERGY_OPTIMIZATION_RESEARCH.md](docs/research/ENERGY_OPTIMIZATION_RESEARCH.md) — açık kaynak enerji optimizasyonu, fiyat adapter'ı ve gerçek zamanlı yeniden planlama
-- [docs/research/DEVICE_AND_EV_ASSUMPTIONS.md](docs/research/DEVICE_AND_EV_ASSUMPTIONS.md) — cihaz tüketimi ve EV şarj varsayımları
-- [docs/TEKNIK.md](docs/TEKNIK.md) — mimari, kurulum, depo yapısı, kalan işler
-- [docs/CONTRACT.md](docs/CONTRACT.md) — model–agent tool kontratı (kilitli, v1.2)
-- [docs/METHOD.md](docs/METHOD.md) — veri doğruluğu, mevzuat kaynakları, dürüstlük ilkeleri
-- [docs/DEPLOY.md](docs/DEPLOY.md) — çalıştırma, Docker, canlıya alma, demo videosu akışı
-
-**Hızlı başlangıç:** `backend/` → `pip install -r requirements-dev.txt` → `uvicorn app.main:app` ·
-`mobile/` → `npm install` → `npx expo start` (testler: `pytest tests/` — 27/27 · lint: `ruff check .`)
+## Product Backlog
+[Miro Backlog](https://miro.com/app/board/uXjVHA5ySr8=/?share_link_id=612821934232)
 
 ---
 
 # Sprintler
 
-> **Sprint yapısı hakkında not.** Planlanan iş takvimin önünde ilerledi: baseline
-> modelli **uçtan uca çalışan ürün** ve **temiz İngilizce kod tabanı** Sprint 1
-> sonunda hazır. Bu yüzden orijinal plandaki "iskelet" (S1) ve "karar zekası" (S2)
-> işleri Sprint 1 altında birleştirilip **tamamlandı** olarak raporlandı; Sprint 2
-> ve 3, geriye kalan **gerçek** işe (weather-aware model yükseltmesi,
-> gerçek zamanlı optimizasyon, değerlendirme, canlıya alma, teslim) göre yeniden yazıldı.
-> Toplam ≈ **113 SP** (S1: 48 · S2: 44 · S3: 21). Ek teknik derinlik backlog'u için
-> [docs/SPRINTS.md](docs/SPRINTS.md) Trello kartlarına hazır açıklamalar içerir.
-
 <details open>
-<summary><h2>Sprint 1 — Temel, Kontrat ve Çalışan Ürün (19 Haziran – 5 Temmuz) · 48 SP · ✅ TESLİM</h2></summary>
+<summary><h2>Sprint 1 (19 Haziran – 5 Temmuz) · 48 SP</h2></summary>
 
-**Sprint hedefi:** Uçtan uca çalışan ürün; model–agent kontratı kilitli; baseline
-modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tabanı.
+**Sprint Notları:** Bu sprint'te hem projenin temeli atıldı hem de tüm ekibin uyumlu çalışabilmesi için gerekli düzenlemeler yapıldı. Takım rolleri belirlendi. Projede yapılacak tasklar belirlendi ve product backlog olarak boarda eklendi. Repo, GitHub & proje altyapısı düzenlendi. Model-agent kontratı oluşturuldu ve tüm ekibin uyumlu çalışabilmesi için gerekli düzenlemeler yapıldı.
+
+**Tamamlanan Puan:** Sprint 1 için 48 puanlık iş yapılacağı belirlenmiştir ve 48 puanlık iş tamamlanmıştır.
+
+**Tahmin Mantığı:** Yapılacak taskların her biri zorluk, öncelik ve yapılma süresine bağlı olarak puanlandırılmıştır. Tüm sprintler için toplam puan 103'tür. Sprint 1 için 48 puan planlanmış ve 48 puan tamamlanmıştır. Sprint 1'de daha çok projenin iskeletinin oluşturulması, temel fonksiyonların yazılması ve agent'ın test edilmesi hedeflenmiştir. Bu nedenle diğer sprintlere göre daha çok puan verilmiştir.
+
+
+**Daily Scrum:** Whatsapp üzerinden toplantı saatleri kararlaştırılıp Meet veya Slack üzerinden toplantılar gerçekleştirilmiştir. Bu kısa toplantılarla ekip üyeleri tamamladıkları işleri, yapacakları task'ları ve karşılaştıkları engelleri paylaşarak ilerleme kaydedilmiştir. 
+
+![Sprint 1 Huddle](docs/gorseller/sprint1_huddle.jpeg)
+
+![Daily Scrum](docs/gorseller/sprint1_meet.png)
+
+
+**Scrum Board Ekran Görüntüleri**
+![Sprint Board Updates](docs/gorseller/sprint1_scrumboard.png)
+
+![Sprint Board Updates](docs/gorseller/sprint1_scrumboard2.png)
+
+![Sprint Board Updates](docs/gorseller/sprint1_burndownChart.png)
+
+**Sistem Mimari Şeması**
+![Sprint 1 System Architecture](docs/gorseller/sprint1_systemarchitecture.png)
+
+**Ürün Ekran Görüntüleri**
+
+| Onboarding | Günlük Plan | Asistan |
+|---|---|---|
+| ![Onboarding](docs/gorseller/adim1_onboarding.png) | ![Plan](docs/gorseller/adim3_bugun.png) | ![Asistan](docs/gorseller/adim4_asistan.png) |
+
+
+**Sprint Review:** Hangi veri setlerinin kullanılacağına karar verilip PVGIS ve Open-Meteo API entegrasyonları yapılarak veri çekme scriptleri yazıldı. FastAPI ile backend iskeleti oluşturuldu ve Expo kullanılarak mobil/web uygulamasının temel sayfaları (onboarding, plan, asistan vb.) kodlandı. Ayrıca agent yapısı için 6 farklı tool geliştirilerek optimizasyon motoru devreye alındı ve kapsamlı testlerle (uçtan uca doğrulama) sistem sağlamlaştırıldı.
+
+**Sprint Retrospective:** Diğer 2 sprintte daha verimli çalışılacağına ve daha planlı toplantı yapılması gerektiğine karar verildi.
 
 | # | Görev | Ekip | SP | Durum |
 |---|---|---|---|---|
@@ -109,19 +112,10 @@ modeller + gerçek agent + mobil/web arayüz; temiz, tutarlı İngilizce kod tab
 | S1-8 | Proaktif uyarılar + karşı-olgusal ay sonu raporu + CO₂/çevre katmanı + **14 test** & uçtan uca doğrulama | Ortak | 5 | ✅ |
 | S1-9 | Grounding guard + agent eval suite + API sağlamlaştırma (27 test, güvenli hata cevabı, grounded fallback) | YZ | 3 | ✅ |
 
-**Tamamlanan (kanıt):** yukarıdaki ekran görüntüleri Sprint 1 sonundaki çalışan
-üründen (gerçek Open-Meteo verisi, İzmir). Mevzuat/veri doğrulaması METHOD.md'de
-(2026 tarifeleri, RG 02.04.2026 saatlik mahsup, ETKB emisyon faktörü).
-
-- **Daily Scrum:** [docs/scrum/sprint-1/daily.md](docs/scrum/sprint-1/daily.md)
-- **Sprint Board:** [docs/scrum/sprint-1/board.md](docs/scrum/sprint-1/board.md) *(ekran görüntüsü hafta sonu eklenecek)*
-- **Sprint Review:** [docs/scrum/sprint-1/review.md](docs/scrum/sprint-1/review.md)
-- **Sprint Retrospective:** [docs/scrum/sprint-1/retrospective.md](docs/scrum/sprint-1/retrospective.md)
-
 </details>
 
 <details>
-<summary><h2>Sprint 2 — Gerçek ML, Yerel LLM ve Optimizasyon Sağlamlaştırma (6 – 19 Temmuz) · 44 SP · 🟡 BRANCH</h2></summary>
+<summary><h2>Sprint 2 (6 – 19 Temmuz) · 34 SP</h2></summary>
 
 **Hedef:** Baseline modelleri hava/veri girdili v1 artifact'lere taşı; agent'ı
 Gemini/Ollama/fallback provider zinciriyle sağlamlaştır; gerçek zamanlı hava/saat
@@ -145,7 +139,7 @@ güneş penceresine göre optimize edilir; agent bunu Türkçe ve grounded açı
 </details>
 
 <details>
-<summary><h2>Sprint 3 — Değerlendirme, Canlıya Alma ve Teslim (20 Temmuz – 2 Ağustos) · 21 SP · 🔜 PLANLANDI</h2></summary>
+<summary><h2>Sprint 3 (20 Temmuz – 2 Ağustos) · 21 SP </h2></summary>
 
 **Hedef:** Modelleri değerlendir, ürünü canlıya al, teslim paketini hazırla.
 

@@ -21,7 +21,7 @@ from ..schemas import Weather
 
 log = logging.getLogger(__name__)
 
-_CACHE = os.path.join(tempfile.gettempdir(), "voltaic_weather_cache.json")
+_CACHE = os.path.join(tempfile.gettempdir(), "wattra_weather_cache.json")
 _URL = "https://api.open-meteo.com/v1/forecast"
 
 
