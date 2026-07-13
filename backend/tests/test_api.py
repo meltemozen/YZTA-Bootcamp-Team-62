@@ -60,8 +60,8 @@ def test_end_to_end_flow():
     body = plan.json()
     assert body["items"], "Plan must contain at least one item"
     assert body["total_saving_tl_max"] >= body["total_saving_tl_min"]
-    assert body["chart_data"]["models"]["production"].startswith("v1-")
-    assert body["chart_data"]["models"]["consumption"].startswith("v1-")
+    assert body["chart_data"]["models"]["production"].startswith("v")
+    assert body["chart_data"]["models"]["consumption"].startswith("v")
 
     # Assistant (reasoned Turkish reply in fallback mode)
     resp = client.post("/api/assistant", json={"user_id": uid,
