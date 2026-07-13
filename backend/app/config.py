@@ -1,4 +1,4 @@
-"""Voltaic configuration — ALL energy constants and their sources live HERE.
+"""Wattra configuration — ALL energy constants and their sources live HERE.
 
 No price/factor constant exists anywhere else in the code. Each value carries
 its source and date; after an EPDK board decision (usually Jan/Apr/Jul) this
@@ -28,7 +28,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
 OLLAMA_TIMEOUT_S = float(os.getenv("OLLAMA_TIMEOUT_S", "45"))
 
 # --- Database ---
-DB_PATH = os.getenv("VOLTAIC_DB", os.path.join(os.path.dirname(__file__), "..", "voltaic.db"))
+DB_PATH = os.getenv("WATTRA_DB", os.path.join(os.path.dirname(__file__), "..", "wattra.db"))
 
 # --- EPDK tariff (end-user price incl. taxes, TL/kWh) ---
 # Source: EPDK 4 April 2026 tariff table; sector compilations (June 2026).

@@ -1,4 +1,4 @@
-// Voltaic brand elements: logo mark (sun ring + bolt) and wordmark.
+// Wattra brand elements: logo mark (sun ring + bolt) and wordmark.
 // The logo is a single SVG — the same mark is used for the app icon, splash
 // and headers.
 
@@ -34,7 +34,7 @@ export function LogoMark({ size = 34 }) {
 export function Wordmark({ size = 24 }) {
   return (
     <Text style={{ fontFamily: font.title, fontSize: size, color: colors.ink, letterSpacing: 0.5 }}>
-      volta<Text style={{ color: colors.amber }}>ic</Text>
+      watt<Text style={{ color: colors.amber }}>ra</Text>
     </Text>
   );
 }

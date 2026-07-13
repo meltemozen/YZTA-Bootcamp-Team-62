@@ -7,7 +7,7 @@ offline, so the flow works in every environment.
 import os
 import tempfile
 
-os.environ["VOLTAIC_DB"] = os.path.join(tempfile.mkdtemp(), "test.db")
+os.environ["WATTRA_DB"] = os.path.join(tempfile.mkdtemp(), "test.db")
 os.environ.pop("GEMINI_API_KEY", None)
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import config  # noqa: E402
 
 config.GEMINI_API_KEY = ""
-config.DB_PATH = os.environ["VOLTAIC_DB"]
+config.DB_PATH = os.environ["WATTRA_DB"]
 
 from app.main import app  # noqa: E402
 

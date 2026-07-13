@@ -1,6 +1,6 @@
-# Voltaic — Sprint Planı & Product Backlog
+# Wattra — Sprint Planı & Product Backlog
 
-> Bu belge `Voltaic_Project_Sprints.pdf`'in yerini alır. Orijinal PDF planlanan
+> Bu belge `Wattra_Project_Sprints.pdf`'in yerini alır. Orijinal PDF planlanan
 > iş için yazılmıştı; bu belge **gerçekte yapılan işi** (Sprint 1 = teslim) ve
 > **kalan gerçek işi** (Sprint 2–3) yansıtır.
 >
@@ -266,7 +266,7 @@ seed verisi ve tek komutla ayağa kalkan showcase akışı hazırla.
 
 ### S3-2 · Canlıya alma (backend + APK)  `[Ortak · 5 SP]`
 **Kart açıklaması:** Backend'i Railway/Cloud Run'a Docker ile deploy et (env: GEMINI_API_KEY,
-VOLTAIC_CORS_ORIGINS, DB volume). EAS ile Android APK üret; `app.json` extra.apiUrl'ı
+WATTRA_CORS_ORIGINS, DB volume). EAS ile Android APK üret; `app.json` extra.apiUrl'ı
 canlı URL'e bağla.
 **Kabul kriteri:** canlı `/api/health` erişilebilir · APK kuruluyor ve canlı backend'e bağlanıyor.
 **Kod:** `mobile/app.json` · deploy ayarları

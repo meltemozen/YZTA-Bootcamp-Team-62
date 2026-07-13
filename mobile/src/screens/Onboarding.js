@@ -220,7 +220,7 @@ export default function Onboarding({ onDone }) {
       <NumberInput label="Batarya kapasitesi (yoksa 0 bırak)"
                    value={batteryKwh} setValue={setBatteryKwh} unit="kWh" />
       <Text style={text.small}>
-        Bataryan olmasa da Voltaic cihazlarını güneş saatlerine planlayarak tasarruf sağlar.
+        Bataryan olmasa da Wattra cihazlarını güneş saatlerine planlayarak tasarruf sağlar.
       </Text>
     </View>,
 
@@ -244,7 +244,7 @@ export default function Onboarding({ onDone }) {
     <View key="device">
       <Text style={[text.title, { marginBottom: spacing.s }]}>Hangi cihazların var?</Text>
       <Text style={[text.body, { marginBottom: spacing.m }]}>
-        Zamanını kaydırabileceğin cihazları seç — Voltaic bunları en ucuz saate planlayacak.
+        Zamanını kaydırabileceğin cihazları seç — Wattra bunları en ucuz saate planlayacak.
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {catalog

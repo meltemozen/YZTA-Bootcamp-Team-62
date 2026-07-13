@@ -1,4 +1,4 @@
-// Voltaic — root component.
+// Wattra — root component.
 // Flow: if no saved user, show Onboarding; otherwise the 4-tab main app.
 // Screens are not shown until the brand fonts (Space Grotesk + Inter) load.
 
