@@ -169,3 +169,49 @@ def test_transparency_tool_calls_exposed():
     uid = _new_user()
     r = assistant_reply(uid, db.get_user(uid), "çamaşırı ne zaman atayım")
     assert r.tool_calls, "tool call chain must be exposed for transparency"
+
+
+def test_backstop_persists_preference_when_llm_skips_write(monkeypatch):
+    """S2-4 finding: live Gemini answered "not aldım" to a preference without
+    calling write_memory — the preference silently vanished. The code-level
+    backstop must persist it anyway (and expose the call transparently)."""
+    uid = _new_user()
+
+    def lazy_gemini_loop(context, message):
+        return "Anladım, haftaya salı dışarıda olacağını not aldım. 😊"
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(orchestrator, "_gemini_loop", lazy_gemini_loop)
+
+    r = orchestrator.assistant_reply(uid, db.get_user(uid),
+                                     "haftaya salı yine dışarıdayım, plana dikkat et")
+
+    assert any("write_memory" in c for c in r.tool_calls), "backstop must write"
+    prefs = db.preferences(uid)
+    assert len(prefs) == 1 and "dışarıdayım" in prefs[0]["text"]
+
+
+def test_backstop_does_not_duplicate_llm_write(monkeypatch):
+    uid = _new_user()
+
+    def dutiful_gemini_loop(context, message):
+        context.write_memory("Salı öğlen evde yok.")
+        return "Kaydettim, salı öğlenleri plana katmayacağım."
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(orchestrator, "_gemini_loop", dutiful_gemini_loop)
+
+    orchestrator.assistant_reply(uid, db.get_user(uid), "salı öğlen evde yokum")
+
+    assert len(db.preferences(uid)) == 1, "LLM already wrote; backstop must not duplicate"
+
+
+def test_preference_triggers_semantic_search_and_recall():
+    """S2-5: a new preference first searches similar past ones; a genuinely
+    similar preference is surfaced back to the user in the reply."""
+    uid = _new_user()
+    assistant_reply(uid, db.get_user(uid), "salı öğlen evde yokum")
+    r = assistant_reply(uid, db.get_user(uid), "salı öğlen evde olmuyorum")
+    assert any("search_preferences" in c for c in r.tool_calls), \
+        "preference must trigger a similarity search"
+    assert "salı öğlen evde yokum" in r.reply, "similar past preference must be recalled"

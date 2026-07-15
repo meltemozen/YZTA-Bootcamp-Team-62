@@ -14,6 +14,7 @@ from ..tools import (
     get_weather,
     optimize,
     read_memory,
+    search_preferences,
     write_memory,
 )
 
@@ -111,6 +112,10 @@ class ToolContext:
     def read_memory(self) -> list[dict]:
         self.calls.append("read_memory")
         return read_memory(self.user_id)
+
+    def search_preferences(self, query: str) -> list[dict]:
+        self.calls.append(f"search_preferences({query[:40]})")
+        return search_preferences(self.user_id, query)
 
     def write_memory(self, text: str) -> dict:
         self.calls.append(f"write_memory({text[:40]})")
