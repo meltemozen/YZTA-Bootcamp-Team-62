@@ -1,0 +1,9 @@
+# Extra deps for data/scripts/compare_production_models.py
+# Install with: pip install -r data/scripts/requirements-ml.txt
+-r ../../backend/requirements-dev.txt
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.4
+lightgbm>=4.3
+xgboost>=2.0
+joblib>=1.3
