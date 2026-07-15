@@ -23,6 +23,10 @@ class Device(BaseModel):
     duration_h: int = Field(ge=1, le=12, description="Run duration (hours, rounded up)")
     earliest: int = Field(default=0, ge=0, le=23)
     latest: int = Field(default=23, ge=0, le=23, description="Latest FINISH hour")
+    power_kw: float | None = Field(default=None, gt=0, description="Nominal power if known")
+    category: str | None = Field(default=None, description="Device category for UI/reporting")
+    flexibility: str | None = Field(default=None, description="shiftable | interruptible | fixed")
+    source: str | None = Field(default=None, description="Assumption/source note")
 
 
 class HouseholdProfile(BaseModel):
@@ -50,6 +54,11 @@ class Weather(BaseModel):
     irradiance_wm2: list[float] = Field(description="Hourly global horizontal irradiance (W/m²), 24 elements")
     temp_c: list[float] = Field(description="Hourly temperature (°C), 24 elements")
     cloud_pct: list[float] = Field(description="Hourly cloud cover (%), 24 elements")
+    current_hour: int | None = Field(default=None, ge=0, le=23)
+    current_irradiance_wm2: float | None = None
+    current_temp_c: float | None = None
+    current_cloud_pct: float | None = None
+    source: str = "forecast"
 
 
 class ProductionForecast(BaseModel):
@@ -81,6 +90,7 @@ class Tariff(BaseModel):
         description="Hourly net-metering sell price TL/kWh (≈ buy × 0.70), 24 elements")
     avg_sell_price: float = Field(description="Daily average sell price (back-compat/summary)")
     band: list[str] = Field(description="Per hour: 'day'|'peak'|'night'|'flat'")
+    source: str = Field(default="turkey-regulated", description="Price adapter/source")
 
 
 class PlanItem(BaseModel):
@@ -132,7 +142,7 @@ class AssistantRequest(BaseModel):
 class AssistantResponse(BaseModel):
     reply: str = Field(description="The agent's reasoned Turkish answer")
     plan: DailyPlan | None = None
-    agent_mode: Literal["gemini", "fallback"]
+    agent_mode: Literal["gemini", "ollama", "fallback"]
     tool_calls: list[str] = Field(default_factory=list, description="Transparency: which tools were called")
 
 
@@ -155,3 +165,17 @@ class MonthlyReport(BaseModel):
     car_km_equiv: float = Field(default=0, description="Car-km equivalent of avoided CO2")
     tree_month_equiv: float = Field(default=0, description="How many trees' monthly absorption")
     note: str
+
+
+class WeatherCheck(BaseModel):
+    date: date
+    lat: float
+    lon: float
+    total_irradiance_kwh_m2: float
+    peak_irradiance_wm2: float
+    peak_hour: int
+    avg_cloud_pct: float
+    min_temp_c: float
+    max_temp_c: float
+    production_model_version: str
+    estimated_production_kwh: float

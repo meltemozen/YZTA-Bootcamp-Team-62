@@ -1,0 +1,26 @@
+{
+  "model_version": "v1-generic-load-shape",
+  "trained_on": "Generic public smart-meter shaped profiles; calibrated at runtime with monthly bill kWh",
+  "target": "hourly household/business base-load share",
+  "home_shape": [
+    0.026, 0.023, 0.021, 0.020, 0.021, 0.025,
+    0.036, 0.045, 0.046, 0.042, 0.039, 0.038,
+    0.040, 0.041, 0.041, 0.043, 0.047, 0.057,
+    0.071, 0.081, 0.083, 0.076, 0.058, 0.044
+  ],
+  "business_shape": [
+    0.010, 0.009, 0.009, 0.009, 0.010, 0.012,
+    0.023, 0.046, 0.078, 0.088, 0.090, 0.089,
+    0.086, 0.085, 0.087, 0.086, 0.079, 0.065,
+    0.046, 0.032, 0.021, 0.014, 0.013, 0.012
+  ],
+  "seasonality": {
+    "home_amplitude": 0.11,
+    "business_amplitude": 0.16
+  },
+  "weekend": {
+    "home_multiplier": 1.04,
+    "business_multiplier": 0.72
+  },
+  "notes": "This artifact separates learned hourly shape from runtime scale. Scale comes from the user's monthly bill, so the model remains useful without smart-meter access."
+}

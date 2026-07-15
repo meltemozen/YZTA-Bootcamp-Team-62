@@ -18,7 +18,9 @@ config.DB_PATH = os.environ["WATTRA_DB"]
 
 from app import db  # noqa: E402
 from app.agent import assistant_reply, orchestrator  # noqa: E402
+from app.agent.context import ToolContext  # noqa: E402
 from app.agent.grounding import ungrounded_numbers  # noqa: E402
+from app.agent.local_llm import ollama_loop  # noqa: E402
 from app.schemas import Device, HouseholdProfile  # noqa: E402
 
 
@@ -88,6 +90,79 @@ def test_gemini_ungrounded_reply_falls_back(monkeypatch):
     assert r.agent_mode == "fallback"
     assert "999" not in r.reply
     assert ungrounded_numbers(r.reply, r.plan) == []
+
+
+def test_ollama_provider_can_orchestrate_with_grounding(monkeypatch):
+    uid = _new_user()
+
+    def fake_ollama_loop(context, message, **kwargs):
+        context.get_weather("today")
+        context.forecast_production("today")
+        context.forecast_consumption("today")
+        context.get_tariff("today")
+        summary = context.optimize("today")
+        low, high = summary["total_saving_tl"]
+        return f"Yerel model planı kurdu: yaklaşık {low:.0f}-{high:.0f} TL tasarruf."
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", True)
+    monkeypatch.setattr(orchestrator, "ollama_loop", fake_ollama_loop)
+
+    r = orchestrator.assistant_reply(uid, db.get_user(uid), "bugün plan")
+
+    assert r.agent_mode == "ollama"
+    assert r.plan is not None
+    assert any("optimize" in c for c in r.tool_calls)
+    assert ungrounded_numbers(r.reply, r.plan) == []
+
+
+def test_ollama_loop_executes_tool_calls(monkeypatch):
+    uid = _new_user()
+    context = ToolContext(uid, db.get_user(uid))
+    responses = [
+        {"message": {"role": "assistant", "tool_calls": [
+            {"function": {"name": "optimize", "arguments": {"date": "today"}}}
+        ]}},
+        {"message": {"role": "assistant", "content": "Yerel model planı kurdu; kartlara bakabilirsin."}},
+    ]
+
+    class FakeResponse:
+        def __init__(self, body):
+            self.body = body
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.body
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, *args, **kwargs):
+            return FakeResponse(responses.pop(0))
+
+    monkeypatch.setattr("app.agent.local_llm.httpx.Client", FakeClient)
+
+    text = ollama_loop(
+        context,
+        "bugün plan",
+        system_prompt=orchestrator.SYSTEM_PROMPT,
+        tool_definitions=orchestrator.TOOL_DEFINITIONS,
+        clean_args=orchestrator._clean_args,
+        max_steps=orchestrator.MAX_STEPS,
+    )
+
+    assert "Yerel model" in text
+    assert context.last_plan is not None
+    assert any("optimize" in c for c in context.calls)
 
 
 def test_transparency_tool_calls_exposed():

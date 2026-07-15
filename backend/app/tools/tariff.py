@@ -1,4 +1,4 @@
-"""get_tariff tool — EPDK tariff + hourly net-metering sell price.
+"""get_tariff tool — price adapter for Turkey tariffs + optional price vectors.
 
 Not a dataset; a public table read from config.py.
 
@@ -12,6 +12,7 @@ Turkey rules (July 2026):
   Since sell < buy every hour, self-consumption is always preferred.
 """
 
+import json
 from datetime import date
 
 from .. import config
@@ -26,9 +27,39 @@ def time_band(hour: int) -> str:
     return "night"
 
 
+def _external_price_vector(day: date) -> Tariff | None:
+    if not config.PRICE_VECTOR_FILE:
+        return None
+    try:
+        with open(config.PRICE_VECTOR_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    prices = [float(x) for x in data.get("hourly_price", [])]
+    if len(prices) != 24:
+        return None
+    sell_raw = data.get("hourly_sell_price")
+    sell = ([float(x) for x in sell_raw] if isinstance(sell_raw, list) and len(sell_raw) == 24
+            else [round(p * config.NETMETER_SELL_RATIO, 4) for p in prices])
+    bands = data.get("band") if isinstance(data.get("band"), list) and len(data["band"]) == 24 else ["dynamic"] * 24
+    return Tariff(
+        date=day,
+        hourly_price=prices,
+        hourly_sell_price=sell,
+        avg_sell_price=round(sum(sell) / 24, 4),
+        band=bands,
+        source=data.get("source", "external-price-vector"),
+    )
+
+
 def get_tariff(day: date, user_type: str = "home",
                tariff_type: str = "single",
                monthly_kwh: float | None = None) -> Tariff:
+    external = _external_price_vector(day)
+    if external:
+        return external
+
     group = "residential" if user_type == "home" else "commercial"
     table = config.TARIFF[group]
 
@@ -51,4 +82,5 @@ def get_tariff(day: date, user_type: str = "home",
         hourly_sell_price=sell,
         avg_sell_price=round(sum(sell) / 24, 4),  # back-compat: average
         band=bands,
+        source=f"turkey-regulated-{tariff_type}",
     )
