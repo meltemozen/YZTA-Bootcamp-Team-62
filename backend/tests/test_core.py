@@ -4,7 +4,7 @@ No network — weather is built by hand and behaviour is deterministic.
 Run: inside backend/ `python -m pytest tests/ -v`
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -15,7 +15,15 @@ from app.tools.optimize import optimize
 from app.tools.production import forecast_production
 from app.tools.tariff import get_tariff, time_band
 
-DAY = date(2026, 7, 15)
+# A fixed future offset, not a hardcoded calendar date: optimize() applies a
+# "don't schedule in the past" runtime rule whenever the plan date equals
+# date.today() (see optimize._runtime_blocked_hours), which blocks every hour
+# before the current wall-clock hour. A hardcoded literal date (e.g.
+# date(2026, 7, 15)) eventually collides with "today" as time passes and
+# makes these deterministic-by-design tests fail depending on what time of
+# day CI happens to run. Anchoring to date.today() + N days keeps the tests
+# always describing a day in the future, so that runtime block never fires.
+DAY = date.today() + timedelta(days=2)
 
 
 def sunny_weather() -> Weather:
