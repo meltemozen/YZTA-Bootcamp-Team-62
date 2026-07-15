@@ -10,12 +10,19 @@ is answered here):
   net-metering regulation shows up in the plan.
 * Devices are placed largest-first, at the start hour that minimizes total cost
   within their allowed window (exhaustive 24-hour scan).
+* S2-6 EV realism: `power_kw` bounds the physics — a run cannot finish faster
+  than kwh/power_kw hours (effective duration). Devices marked
+  `flexibility="interruptible"` (EV chargers, pumps) may PAUSE: their hours are
+  chosen greedily by marginal cost and need not be contiguous, so an EV routes
+  around blocked hours and hugs the solar window. Multi-segment placements are
+  reported as one PlanItem per contiguous segment.
 * Saving is computed against a "habit hour" reference (home: 19:00 evening peak,
   business: work start) and reported as a RANGE due to consumption uncertainty.
 * Battery: charge during production-surplus hours, discharge during the most
   expensive import hours (90% round-trip efficiency).
 """
 
+import math
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -44,32 +51,89 @@ def _profile_cost(net: list[float], price: list[float], sell: list[float]) -> fl
     return total
 
 
-def _add_device(net: list[float], device: Device, start: int) -> list[float]:
+def _effective_duration(device: Device) -> int:
+    """Physical feasibility (S2-6): a run cannot finish faster than
+    kwh / power_kw hours. A 22 kWh EV top-up on a 7.4 kW charger needs 3 h even
+    if the user typed duration_h=1."""
+    if device.power_kw:
+        return min(24, max(device.duration_h, math.ceil(device.kwh / device.power_kw - 1e-9)))
+    return device.duration_h
+
+
+def _is_interruptible(device: Device) -> bool:
+    return (device.flexibility or "").lower() == "interruptible"
+
+
+def _add_hours(net: list[float], device: Device, hours: tuple[int, ...]) -> list[float]:
     new = net[:]
-    per_hour = device.kwh / device.duration_h
-    for i in range(device.duration_h):
-        new[(start + i) % 24] += per_hour
+    per_hour = device.kwh / len(hours)
+    for h in hours:
+        new[h % 24] += per_hour
     return new
 
 
-def _remove_device(net: list[float], device: Device, start: int) -> list[float]:
+def _remove_hours(net: list[float], device: Device, hours: tuple[int, ...]) -> list[float]:
     new = net[:]
-    per_hour = device.kwh / device.duration_h
-    for i in range(device.duration_h):
-        new[(start + i) % 24] -= per_hour
+    per_hour = device.kwh / len(hours)
+    for h in hours:
+        new[h % 24] -= per_hour
     return new
 
 
-def _valid_starts(device: Device, blocked: set[int]) -> list[int]:
+def _valid_starts(device: Device, blocked: set[int], duration: int) -> list[int]:
     candidates = []
     for s in range(24):
-        end = s + device.duration_h - 1
+        end = s + duration - 1
         if s < device.earliest or end > device.latest:
             continue
-        if any((s + i) % 24 in blocked for i in range(device.duration_h)):
+        if any((s + i) % 24 in blocked for i in range(duration)):
             continue
         candidates.append(s)
     return candidates
+
+
+def _contiguous_placements(device: Device, blocked: set[int],
+                           duration: int) -> list[tuple[int, ...]]:
+    return [tuple(range(s, s + duration))
+            for s in _valid_starts(device, blocked, duration)]
+
+
+def _greedy_interruptible_hours(net: list[float], device: Device, blocked: set[int],
+                                duration: int, price: list[float],
+                                sell: list[float]) -> tuple[int, ...] | None:
+    """Cheapest `duration` hours in the window, chosen one by one by marginal
+    cost (deterministic and explainable: 'the cheapest hours, solar first').
+    Hours need not be contiguous — this is how an EV pauses and resumes."""
+    window = [h for h in range(device.earliest, device.latest + 1) if h not in blocked]
+    if len(window) < duration:
+        return None
+    per_hour = device.kwh / duration
+    chosen: list[int] = []
+    working = net[:]
+    for _ in range(duration):
+        def _marginal(h: int) -> float:
+            added_import = max(working[h] + per_hour, 0.0) - max(working[h], 0.0)
+            lost_export = max(-working[h], 0.0) - max(-(working[h] + per_hour), 0.0)
+            return added_import * price[h] + lost_export * sell[h]
+        # Tie-break on the hour itself keeps the choice deterministic.
+        best = min((h for h in window if h not in chosen),
+                   key=lambda h: (round(_marginal(h), 6), h))
+        chosen.append(best)
+        working[best] += per_hour
+    return tuple(sorted(chosen))
+
+
+def _segments(hours: tuple[int, ...]) -> list[tuple[int, int]]:
+    """Contiguous (start, end_exclusive) runs of a sorted hour set."""
+    runs: list[tuple[int, int]] = []
+    start = prev = hours[0]
+    for h in hours[1:]:
+        if h != prev + 1:
+            runs.append((start, prev + 1))
+            start = h
+        prev = h
+    runs.append((start, prev + 1))
+    return runs
 
 
 def _current_hour() -> int:
@@ -104,72 +168,100 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
 
     items: list[PlanItem] = []
     reference_hour = 19 if profile.user_type == "home" else profile.work_start
-    scheduled: list[tuple[Device, int]] = []
+    scheduled: list[tuple[Device, tuple[int, ...], int]] = []  # (device, hours, duration)
     cost_evaluations = 0
+
+    def _placements(device: Device, duration: int,
+                    base_net: list[float]) -> list[tuple[int, ...]]:
+        """Candidate hour-sets for a device: contiguous windows, plus (for
+        interruptible loads like EV chargers) the greedy split placement."""
+        options = _contiguous_placements(device, blocked, duration)
+        if _is_interruptible(device):
+            split = _greedy_interruptible_hours(base_net, device, blocked,
+                                                duration, price, sell)
+            if split is not None and split not in options:
+                options.append(split)
+        return options
 
     # --- Device placement (largest load first) ---
     for device in sorted(profile.devices, key=lambda d: d.kwh, reverse=True):
-        candidates = _valid_starts(device, blocked)
-        if not candidates:
+        duration = _effective_duration(device)
+        options = _placements(device, duration, net)
+        if not options and duration != device.duration_h:
+            # The physical duration does not fit the window/blocks; degrade to
+            # the user's declared duration rather than silently dropping.
+            duration = device.duration_h
+            options = _placements(device, duration, net)
+        if not options:
             continue
-        costs = {s: _profile_cost(_add_device(net, device, s), price, sell)
-                 for s in candidates}
+        costs = {hours: _profile_cost(_add_hours(net, device, hours), price, sell)
+                 for hours in options}
         cost_evaluations += len(costs)
-        # On a cost tie, pick the window with the most production surplus: the
-        # safest hour against forecast error (the midday peak).
-        def _surplus(s: int) -> float:
-            return sum(max(-net[(s + i) % 24], 0.0) for i in range(device.duration_h))
-        best = min(costs, key=lambda s: (round(costs[s], 2), -_surplus(s)))
-        scheduled.append((device, best))
-        net = _add_device(net, device, best)
+        # On a cost tie, pick the placement with the most production surplus:
+        # the safest hours against forecast error (the midday peak).
+        def _surplus(hours: tuple[int, ...]) -> float:
+            return sum(max(-net[h % 24], 0.0) for h in hours)
+        best = min(costs, key=lambda hs: (round(costs[hs], 2), -_surplus(hs), hs))
+        scheduled.append((device, best, duration))
+        net = _add_hours(net, device, best)
 
     # Greedy is fast but can be locally suboptimal when multiple large loads
     # compete for the same solar window. Coordinate descent rechecks each device
     # against the placement of the others; 24h horizon keeps this cheap.
     for _ in range(3):
         changed = False
-        for idx, (device, current_start) in enumerate(scheduled):
-            candidates = _valid_starts(device, blocked)
-            if not candidates:
+        for idx, (device, current_hours, duration) in enumerate(scheduled):
+            net_without = _remove_hours(net, device, current_hours)
+            options = _placements(device, duration, net_without)
+            if not options:
                 continue
-            net_without = _remove_device(net, device, current_start)
-            costs = {s: _profile_cost(_add_device(net_without, device, s), price, sell)
-                     for s in candidates}
+            costs = {hours: _profile_cost(_add_hours(net_without, device, hours), price, sell)
+                     for hours in options}
             cost_evaluations += len(costs)
-            best = min(costs, key=lambda s: (round(costs[s], 2), -sum(
-                max(-net_without[(s + i) % 24], 0.0) for i in range(device.duration_h)
-            )))
-            if round(costs[best], 4) < round(costs[current_start], 4):
-                scheduled[idx] = (device, best)
-                net = _add_device(net_without, device, best)
+            best = min(costs, key=lambda hs: (round(costs[hs], 2), -sum(
+                max(-net_without[h % 24], 0.0) for h in hs), hs))
+            current_cost = _profile_cost(_add_hours(net_without, device, current_hours),
+                                         price, sell)
+            if round(costs[best], 4) < round(current_cost, 4):
+                scheduled[idx] = (device, best, duration)
+                net = _add_hours(net_without, device, best)
                 changed = True
         if not changed:
             break
 
-    for device, best in scheduled:
-        net_without = _remove_device(net, device, best)
-        candidates = _valid_starts(device, blocked)
-        if not candidates:
+    for device, best, duration in scheduled:
+        net_without = _remove_hours(net, device, best)
+        # Habit reference stays CONTIGUOUS (that is how people actually run
+        # devices today: plug the EV in at 19:00 and leave it).
+        ref_starts = _valid_starts(device, blocked, duration)
+        if not ref_starts:
             continue
-        ref = reference_hour if reference_hour in candidates else max(
-            candidates,
-            key=lambda s: _profile_cost(_add_device(net_without, device, s), price, sell),
+        ref_start = reference_hour if reference_hour in ref_starts else max(
+            ref_starts,
+            key=lambda s: _profile_cost(
+                _add_hours(net_without, device, tuple(range(s, s + duration))), price, sell),
         )
-        best_cost = _profile_cost(_add_device(net_without, device, best), price, sell)
-        ref_cost = _profile_cost(_add_device(net_without, device, ref), price, sell)
+        ref_hours = tuple(range(ref_start, ref_start + duration))
+        best_cost = _profile_cost(_add_hours(net_without, device, best), price, sell)
+        ref_cost = _profile_cost(_add_hours(net_without, device, ref_hours), price, sell)
         cost_evaluations += 2
         saving = max(ref_cost - best_cost, 0.0)
         u = config.SAVING_UNCERTAINTY
 
-        items.append(PlanItem(
-            type="device", name=device.name,
-            start_h=best,
-            end_h=(best + device.duration_h) % 24,
-            saving_tl_min=round(saving * (1 - u), 2),
-            saving_tl_max=round(saving * (1 + u), 2),
-            reason_code=_reason(best, production.hourly_kwh, consumption.hourly_kwh,
-                                tariff.band),
-        ))
+        # One PlanItem per contiguous segment; savings split pro-rata by hours.
+        segments = _segments(best)
+        for seg_no, (seg_start, seg_end) in enumerate(segments, start=1):
+            share = (seg_end - seg_start) / len(best)
+            name = device.name if len(segments) == 1 else f"{device.name} ({seg_no}. bölüm)"
+            items.append(PlanItem(
+                type="device", name=name,
+                start_h=seg_start,
+                end_h=seg_end % 24,
+                saving_tl_min=round(saving * share * (1 - u), 2),
+                saving_tl_max=round(saving * share * (1 + u), 2),
+                reason_code=_reason(seg_start, production.hourly_kwh,
+                                    consumption.hourly_kwh, tariff.band),
+            ))
 
     # --- Battery: charge with surplus production, discharge at expensive hours ---
     if profile.battery_kwh > 0 and profile.battery_power_kw > 0:
@@ -244,7 +336,7 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
                 "current_hour": current_hour if current_hour is not None
                 else (_current_hour() if production.date == date.today() else None),
                 "price_adapter": tariff.source,
-                "device_optimizer": "greedy+coordinate_descent",
+                "device_optimizer": "greedy+coordinate_descent+interruptible",
                 "cost_evaluations": cost_evaluations,
             },
             # Environmental equivalents: make CO2 tangible (Ministry EF + widely
