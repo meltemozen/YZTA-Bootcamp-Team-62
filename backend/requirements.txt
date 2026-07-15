@@ -6,6 +6,9 @@ httpx>=0.27,<0.29
 pydantic>=2.8,<3.0
 google-genai>=1.0,<2.0
 python-dotenv>=1.0,<2.0
+# zoneinfo("Europe/Istanbul") needs the IANA db; python:slim images and
+# Windows ship without it.
+tzdata>=2024.1
 # v1-lightgbm production forecast model (backend/app/tools/production.py).
 # Optional at import time — if missing, production.py falls back to the
 # pure-Python linear/physical model automatically. Pin it here anyway since
