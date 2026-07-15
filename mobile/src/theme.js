@@ -1,4 +1,4 @@
-// ─── Voltaic Design Identity ────────────────────────────────────────────────
+// ─── Wattra Design Identity ────────────────────────────────────────────────
 // "Night grid" dark theme: deep navy background + solar amber accent.
 // Typography: Space Grotesk (titles/numbers) + Inter (body).
 //

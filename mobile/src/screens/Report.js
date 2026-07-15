@@ -83,7 +83,7 @@ export default function Report({ userId }) {
           </View>
 
           <View style={[card, { borderLeftWidth: 3, borderLeftColor: colors.amber }]}>
-            <Text style={text.subtitle}>Voltaic'in yorumu · {report.month}</Text>
+            <Text style={text.subtitle}>Wattra'in yorumu · {report.month}</Text>
             <Text style={[text.body, { marginTop: spacing.s }]}>{report.note}</Text>
             <Text style={[text.small, { marginTop: spacing.s }]}>
               Çevresel etki, ETKB şebeke emisyon faktörüyle (0.44 kg CO₂e/kWh) hesaplanır.

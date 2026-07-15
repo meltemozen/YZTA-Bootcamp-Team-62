@@ -69,7 +69,7 @@ docker compose up --build
 
 **Google Cloud Run (bootcamp anlatısına uygun):**
 ```bash
-gcloud run deploy voltaic-api --source backend/ \
+gcloud run deploy wattra-api --source backend/ \
   --region europe-west1 --allow-unauthenticated \
   --set-env-vars GEMINI_API_KEY=$GEMINI_API_KEY
 ```

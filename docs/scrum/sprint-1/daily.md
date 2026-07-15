@@ -5,7 +5,7 @@
 
 ## Hafta 1 (19–28 Haziran) — İskelet ve kontrat
 
-- Proje fikri (Voltaic) onaylandı; repo açıldı, roller belirlendi.
+- Proje fikri (Wattra) onaylandı; repo açıldı, roller belirlendi.
 - **Kritik kilit:** model–agent tool kontratı (JSON şema) ilk hafta kapatıldı —
   iki ekibin (YZ/VB) paralel ilerleyebilmesinin ön koşulu.
 - PVGIS + Open-Meteo veri çekme scriptleri çalışır hale geldi.
