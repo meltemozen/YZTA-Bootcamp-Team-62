@@ -1,26 +1,33 @@
 # Üretim Modeli Karşılaştırması (v1)
 
-> ⚠️ Bu çalıştırmada **LightGBM, XGBoost kurulu değildi**, bu yüzden tabloda yer almıyor. `pip install -r data/scripts/requirements-ml.txt` sonrası scripti tekrar çalıştırıp bu raporu güncelleyin — nihai model seçimi bu ikisi olmadan kesinleştirilmemeli.
-
-- Veri: PVGIS (hedef + ışınım) + Open-Meteo + NASA POWER, saatlik, İzmir bölgesi.
+- Veri: PVGIS (hedef `P` + `Gb(i)`/`Gd(i)`/`Gr(i)`) + Open-Meteo (`cloud_cover`), saatlik.
 - Doğrulama: son yıl hold-out (2023), zaman bazlı split (shuffle yok).
-- Metrikler: MAE / RMSE (kWh/kWp), nMAE % (yalnızca gündüz saatleri, radiation > 0).
+- Özellikler: `irradiance_wm2`, `temp_loss_interaction`, `cloud_interaction`, `edge_hour_loss`
+  — backend'in çalışma zamanında (`forecast_production`) sahip olduğu girdilerle bire bir aynı,
+  böylece kazanan model doğrudan deploy edilebilir.
+- Metrikler: MAE / RMSE (kWh/kWp), nMAE % (yalnızca gündüz saatleri, irradiance > 0).
 - Kural (docs/METHOD.md): v0-physical baseline'ı geçemeyen model üretime alınmaz.
 
 ## Sonuçlar
 
 | Model | MAE | RMSE | nMAE % |
 |---|---|---|---|
-| RandomForest | 0.00175 | 0.00426 | 1.09 |
-| Ridge | 0.00725 | 0.01214 | 3.62 |
-| v0-physical (baseline) | 0.01006 | 0.01871 | 6.13 |
+| LightGBM | 0.00335 | 0.00771 | 2.08 |
+| XGBoost | 0.00337 | 0.00775 | 2.09 |
+| RandomForest | 0.00343 | 0.00801 | 2.13 |
+| Ridge | 0.00581 | 0.01109 | 3.60 |
+| v0-physical (baseline) | 0.00882 | 0.01605 | 5.47 |
 
 ## Karar
 
-**RandomForest** en düşük nMAE'ye sahip ve v0-physical baseline'ı (6.13%) geçiyor (1.09%). v1 adayı olarak önerilir.
+**LightGBM** en düşük nMAE'ye sahip ve v0-physical baseline'ı (5.47%) geçiyor.
 
 ## Notlar
 
-- LightGBM/XGBoost sonuçları yalnızca bu kütüphaneler kurulu olduğunda üretilir (`pip install -r data/scripts/requirements-ml.txt`).
+- LightGBM/XGBoost sonuçları yalnızca bu kütüphaneler kurulu olduğunda üretilir
+  (`pip install -r data/scripts/requirements-ml.txt`).
 - Script: `data/scripts/compare_production_models.py`.
-- Ham veri dosyaları repo'ya commitlenmez (`.gitignore`); `data/raw/` altına yerel olarak kopyalanıp çalıştırılmalıdır.
+- Ham veri dosyaları repo'ya commitlenmez (`.gitignore`); `data/raw/` altına yerel
+  olarak kopyalanıp çalıştırılmalıdır.
+
+- Model karşılaştırması tamamlandı, LightGBM/XGBoost/RandomForest pratikte eşdeğer (~%2 nMAE), hepsi baseline'ı geçti.

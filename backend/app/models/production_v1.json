@@ -1,23 +1,16 @@
 {
-  "model_version": "v1-weather-regressor",
-  "trained_on": "PVGIS hourly PV output schema; generic coefficients bundled for offline demo",
+  "model_version": "v1-lightgbm",
+  "model_type": "lightgbm",
+  "model_file": "production_v1_lgbm.txt",
+  "trained_on": "data/raw/pvgis_hourly.csv + data/raw/open_meteo_hourly.csv, full history (no holdout \u2014 see compare_production_models.py for the held-out evaluation)",
   "target": "hourly AC kWh per installed kWp",
   "features": [
-    "shortwave_radiation_wm2",
-    "temperature_2m_c",
-    "cloud_cover_pct",
-    "hour_solar_shape",
-    "day_of_year_solar_shape"
+    "irradiance_wm2",
+    "temp_loss_interaction",
+    "cloud_interaction",
+    "edge_hour_loss"
   ],
-  "coefficients": {
-    "ghi": 0.00083,
-    "temp_loss": -0.0000034,
-    "cloud_interaction": -0.00000042,
-    "edge_hour_loss": -0.035
-  },
-  "intercept": 0.0,
-  "fallback_performance_ratio": 0.80,
+  "fallback_performance_ratio": 0.8,
   "max_kw_per_kwp": 1.0,
-  "blend_with_physical": 0.25,
-  "notes": "The runtime model is weather-driven and can be retrained with data/scripts/train_production_model.py when PVGIS CSVs are available."
+  "blend_with_physical": 0.0
 }

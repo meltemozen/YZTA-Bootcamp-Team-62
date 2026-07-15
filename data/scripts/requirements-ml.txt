@@ -1,9 +1,13 @@
-# Extra deps for data/scripts/compare_production_models.py
-# Install with: pip install -r data/scripts/requirements-ml.txt
--r ../../backend/requirements-dev.txt
-pandas>=2.2
+# Optional dependencies for data/scripts/compare_production_models.py and
+# data/scripts/ml_pipeline.py. NOT part of backend/requirements.txt — the
+# backend service itself has zero ML-library runtime dependencies today
+# (see backend/app/tools/production.py, which evaluates a small JSON
+# linear-model artifact by hand). Install only for offline model research:
+#
+#   pip install -r data/scripts/requirements-ml.txt
+#
+pandas>=2.0
 numpy>=1.26
 scikit-learn>=1.4
-lightgbm>=4.3
+lightgbm>=4.0
 xgboost>=2.0
-joblib>=1.3
