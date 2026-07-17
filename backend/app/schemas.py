@@ -50,6 +50,10 @@ class Weather(BaseModel):
     irradiance_wm2: list[float] = Field(description="Hourly global horizontal irradiance (W/m²), 24 elements")
     temp_c: list[float] = Field(description="Hourly temperature (°C), 24 elements")
     cloud_pct: list[float] = Field(description="Hourly cloud cover (%), 24 elements")
+    source: Literal["live", "cached", "synthetic"] = Field(
+        default="live",
+        description="'live' = fresh Open-Meteo call, 'cached' = last known good response, "
+                    "'synthetic' = no network/cache at all, seasonal clear-sky estimate")
 
 
 class ProductionForecast(BaseModel):

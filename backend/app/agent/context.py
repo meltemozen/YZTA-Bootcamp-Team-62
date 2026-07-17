@@ -36,43 +36,63 @@ class ToolContext:
     def __init__(self, user_id: int, profile: HouseholdProfile):
         self.user_id = user_id
         self.profile = profile
-        self.calls: list[str] = []
+        self._calls: list[str] = []
         self.last_plan: DailyPlan | None = None
         self._weather = {}
         self._production = {}
         self._consumption = {}
         self._tariff = {}
 
+    @property
+    def calls(self) -> list[str]:
+        """Transparency log, deduplicated (first occurrence wins, order kept).
+
+        A tool can legitimately run twice in one turn — e.g. Gemini walks part
+        of the chain, the call fails, and `fallback.reply()` re-runs the same
+        pipeline on this same context. Cached values mean no extra work
+        actually happens, so the mobile footer showing "tool(date)" twice back
+        to back would just be noise, not a second real call.
+        """
+        seen: set[str] = set()
+        out: list[str] = []
+        for c in self._calls:
+            if c not in seen:
+                seen.add(c)
+                out.append(c)
+        return out
+
     # --- Tool surface exposed to the agent (names are the contract names) ---
 
     def get_weather(self, date: str | None = None) -> dict:
         d = _resolve_date(date)
-        self.calls.append(f"get_weather({d})")
+        self._calls.append(f"get_weather({d})")
         self._weather[d] = get_weather(self.profile.lat, self.profile.lon, d)
         w = self._weather[d]
         return {"date": str(d), "total_irradiance_kwh_m2": round(sum(w.irradiance_wm2) / 1000, 2),
-                "max_temp": max(w.temp_c), "avg_cloud": round(sum(w.cloud_pct) / 24, 1)}
+                "max_temp": max(w.temp_c), "avg_cloud": round(sum(w.cloud_pct) / 24, 1),
+                "source": w.source}
 
     def forecast_production(self, date: str | None = None) -> dict:
         d = _resolve_date(date)
-        self.calls.append(f"forecast_production({d})")
+        self._calls.append(f"forecast_production({d})")
         if d not in self._weather:
             self._weather[d] = get_weather(self.profile.lat, self.profile.lon, d)
         self._production[d] = forecast_production(self._weather[d], self.profile.panel_kw)
         p = self._production[d]
         peak = max(range(24), key=lambda h: p.hourly_kwh[h])
         return {"date": str(d), "total_kwh": p.total_kwh,
-                "peak_hour": peak, "peak_kwh": p.hourly_kwh[peak]}
+                "peak_hour": peak, "peak_kwh": p.hourly_kwh[peak],
+                "weather_source": self._weather[d].source}
 
     def forecast_consumption(self, date: str | None = None) -> dict:
         d = _resolve_date(date)
-        self.calls.append(f"forecast_consumption({d})")
+        self._calls.append(f"forecast_consumption({d})")
         self._consumption[d] = forecast_consumption(self.profile, d)
         return {"date": str(d), "total_kwh": self._consumption[d].total_kwh}
 
     def get_tariff(self, date: str | None = None) -> dict:
         d = _resolve_date(date)
-        self.calls.append(f"get_tariff({d})")
+        self._calls.append(f"get_tariff({d})")
         self._tariff[d] = get_tariff(d, self.profile.user_type,
                                      self.profile.tariff_type,
                                      monthly_kwh=self.profile.monthly_bill_kwh)
@@ -85,7 +105,7 @@ class ToolContext:
 
     def optimize(self, date: str | None = None, blocked_hours: list[int] | None = None) -> dict:
         d = _resolve_date(date)
-        self.calls.append(f"optimize({d})")
+        self._calls.append(f"optimize({d})")
         if d not in self._production:
             self.forecast_production(str(d))
         if d not in self._consumption:
@@ -108,9 +128,9 @@ class ToolContext:
         }
 
     def read_memory(self) -> list[dict]:
-        self.calls.append("read_memory")
+        self._calls.append("read_memory")
         return read_memory(self.user_id)
 
     def write_memory(self, text: str) -> dict:
-        self.calls.append(f"write_memory({text[:40]})")
+        self._calls.append(f"write_memory({text[:40]})")
         return write_memory(self.user_id, text, source="inferred")
