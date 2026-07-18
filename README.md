@@ -119,34 +119,38 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 <details>
 <summary><h2>Sprint 2 (6 – 19 Temmuz) · 34 SP</h2></summary>
 
-**Sprint hedefi:** Tahmin motorunu v1 model artifact'leriyle güçlendirmek ve planı
-kullanıcının gerçek konumu + anlık/gelecek hava tahminiyle üretmek.
+**Sprint Notları:** Bu sprint'te tahmin motoru v1 model artifact'leriyle güçlendirildi: üretim modeli LightGBM, tüketim modeli CatBoost olarak yeniden eğitilip v0 ile karşılaştırmalı raporlandı ve tüketim modeli EPİAŞ verisiyle kalibre edildi. Chroma tabanlı semantik hafıza (`search_preferences`) eklendi, cihaz kataloğu ve EV şarj senaryosu güç-bilinçli planlamaya entegre edildi. Gemini agent uçtan uca test edilip prompt'lar optimize edildi.
 
-**Bu branch'te yapılan işler:**
+**Tamamlanan Puan:** Sprint 2 için 34 puanlık iş yapılacağı belirlenmiştir ve 34 puanlık iş tamamlanmıştır.
 
-| # | Görev | Ekip | SP | Durum |
-|---|---|---|---|---|
-| S2-1 | LightGBM üretim modeli v1 (nMAE %2.08, v0/XGB/RF/Ridge karşılaştırmalı) | VB | 8 | ✅ |
-| S2-2 | CatBoost tüketim modeli v1 (Kaggle+EPİAŞ kalibrasyonu, shape distillation) | VB | 8 | ✅ |
-| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 | ✅ |
-| S2-4 | Gemini canlı test + prompt iyileştirme + Ollama provider zinciri | YZ | 5 | 🟡 devam |
-| S2-5 | Chroma semantik hafıza + Gemini embeddings (`search_preferences`) | YZ | 5 | ✅ |
-| S2-6 | Cihaz kataloğu + EV şarj senaryosu (güç-bilinçli planlama) | YZ | 3 | 🟡 devam |
-| S2-7 | Expo konum izni + konuma göre hava kontrolü | YZ | 5 | 🟡 branch |
-| S2-8 | Gerçek zamanlı optimizer + performans iyileştirme | YZ | 5 | 🟡 branch |
+**Tahmin Mantığı:** Sprint 1'de atılan temel üzerine, Sprint 2'de modellerin v1 sürümlerinin çıkarılması, karşılaştırmalı raporlanması ve agent'ın gerçek veriyle (EPİAŞ, hafıza, cihaz kataloğu) sağlamlaştırılması hedeflenmiştir. Toplam 103 puanın 34'ü bu sprint'e ayrılmış ve tamamı tamamlanmıştır.
 
-**Sprint 2 Scrum Board**
+**Daily Scrum:** Whatsapp üzerinden toplantı saatleri kararlaştırılıp Meet veya Slack üzerinden toplantılar gerçekleştirilmiştir. Bu kısa toplantılarla ekip üyeleri tamamladıkları işleri, yapacakları task'ları ve karşılaştıkları engelleri paylaşarak ilerleme kaydedilmiştir.
+
+![Sprint 2 Huddle](docs/gorseller/sprint2_huddle.jpeg)
+
+**Scrum Board Ekran Görüntüsü**
 
 ![Sprint 2 Scrum Board](docs/gorseller/sprint2_scrumboard.png)
 
-| Kart | Ekip | SP | Durum | Kod karşılığı |
-|---|---|---:|---|---|
-| S2-1 Weather-aware üretim modeli v1 | VB | 8 | Branch'te | `backend/app/tools/production.py`, `backend/app/models/production_v1.json`, `data/scripts/train_production_model.py` |
-| S2-2 Generic smart-meter tüketim modeli v1 | VB | 8 | Branch'te | `backend/app/tools/consumption.py`, `backend/app/models/consumption_v1.json`, `data/scripts/train_consumption_model.py` |
-| S2-4 Gemini/Ollama provider zinciri | YZ | 5 | Branch'te | `backend/app/agent/orchestrator.py`, `backend/app/agent/local_llm.py`, `backend/app/config.py` |
-| S2-6 Cihaz kataloğu + EV şarj metadata'sı | YZ | 3 | Branch'te | `backend/app/data/devices.json`, `backend/app/tools/optimize.py`, `docs/research/DEVICE_AND_EV_ASSUMPTIONS.md` |
-| S2-7 Expo konum izni + hava kontrolü | YZ | 5 | Branch'te | `mobile/src/screens/Onboarding.js`, `mobile/src/api.js`, `backend/app/main.py` |
-| S2-8 Gerçek zamanlı optimizer + performans | YZ | 5 | Branch'te | `backend/app/tools/weather.py`, `backend/app/tools/optimize.py`, `backend/app/tools/tariff.py`, `docs/research/ENERGY_OPTIMIZATION_RESEARCH.md` |
+**Sprint 2 Burndown Chart**
+
+![Sprint 2 Burndown Chart](docs/gorseller/sprint2_burndownChart.png)
+
+**Sprint Review:** Üretim modeli LightGBM v1 ve tüketim modeli CatBoost v1, v0 ile karşılaştırmalı şekilde eğitilip raporlandı; tüketim modeli EPİAŞ şekil doğrulamasıyla kalibre edildi. Chroma + Gemini embeddings ile semantik hafıza (`search_preferences`) eklendi. Cihaz kataloğu ve EV şarj senaryosu güç-bilinçli planlamaya dahil edildi. Gemini agent uçtan uca test edilerek prompt'lar iyileştirildi.
+
+**Sprint Retrospective:** Model karşılaştırma ve kalibrasyon işlerinin planlanandan daha fazla zaman aldığı görüldü; Sprint 3'te canlıya alma ve teslim hazırlıklarına daha erken başlanmasına karar verildi.
+
+| # | Görev | Ekip | SP | Durum |
+|---|---|---|---|---|
+| S2-1 | Chroma DB ile Semantik Hafıza (Memory) Genişletmesi ([PR #4](https://github.com/meltemozen/YZTA-Bootcamp-Team-62/pull/4)) | YZ | 5 | ✅ |
+| S2-2 | Cihaz Kataloğu Güncellemesi ve EV Şarj Senaryosu | YZ | 3 | ✅ |
+| S2-3 | Tüketim Model Karşılaştırması ve Raporlanması | VB | 4 | ✅ |
+| S2-4 | Üretim Model Karşılaştırması ve Raporlanması | VB | 4 | ✅ |
+| S2-5 | Gemini Agent Uçtan Uca Testi ve Prompt Optimizasyonu | YZ | 5 | ✅ |
+| S2-6 | Tüketim Modeli (v1) Geliştirimi | VB | 4 | ✅ |
+| S2-7 | Üretim Modeli (v1) Geliştirimi | VB | 4 | ✅ |
+| S2-8 | EPİAŞ Doğrulama ve Tüketim Kalibrasyon Raporu | VB | 5 | ✅ |
 
 **Notlar**
 
