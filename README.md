@@ -120,14 +120,16 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 **Hedef:** Baseline modelleri gerçek makine öğrenmesiyle değiştir; agent'ı canlı
 Gemini anahtarıyla sağlamlaştır. Kontrat sabit — yalnız tool gövdeleri değişir.
 
-| # | Görev | Ekip | SP |
-|---|---|---|---|
-| S2-1 | LightGBM üretim modeli v1 (`production.py` gövdesi; `model_version`→`v1-lightgbm`) | VB | 8 |
-| S2-2 | LightGBM tüketim modeli v1 (`consumption.py` gövdesi) | VB | 8 |
-| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 |
-| S2-4 | Gemini anahtarıyla uçtan uca agent testi + prompt iyileştirme | YZ | 5 |
-| S2-5 | Chroma semantik hafıza (`memory.py` genişletme; imza sabit) | YZ | 5 |
-| S2-6 | Cihaz kataloğu genişletme + EV şarj senaryosu ince ayarı | YZ | 3 |
+| # | Görev | Ekip | SP | Durum |
+|---|---|---|---|---|
+| S2-1 | LightGBM üretim modeli v1 (nMAE %2.08, v0/XGB/RF/Ridge karşılaştırmalı) | VB | 8 | ✅ |
+| S2-2 | CatBoost tüketim modeli v1 (Kaggle+EPİAŞ kalibrasyonu, shape distillation) | VB | 8 | ✅ |
+| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 | ✅ |
+| S2-4 | Gemini canlı test + prompt iyileştirme + Ollama provider zinciri | YZ | 5 | 🟡 devam |
+| S2-5 | Chroma semantik hafıza + Gemini embeddings (`search_preferences`) | YZ | 5 | ✅ |
+| S2-6 | Cihaz kataloğu + EV şarj senaryosu (güç-bilinçli planlama) | YZ | 3 | 🟡 devam |
+| S2-7 | Expo konum izni + konuma göre hava kontrolü | YZ | 5 | 🟡 branch |
+| S2-8 | Gerçek zamanlı optimizer + performans iyileştirme | YZ | 5 | 🟡 branch |
 
 **Sprint 2 demo kriteri:** "Çamaşırı 13:00'te at" önerisi v1 LightGBM üretim
 tahminiyle üretiliyor; kullanıcı itirazıyla değişiyor; hafıza tercihi hatırlıyor.

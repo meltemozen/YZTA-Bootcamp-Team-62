@@ -22,9 +22,21 @@ import os
 # --- LLM ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "0").lower() in ("1", "true", "yes", "on")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
+OLLAMA_TIMEOUT_S = float(os.getenv("OLLAMA_TIMEOUT_S", "45"))
 
 # --- Database ---
 DB_PATH = os.getenv("WATTRA_DB", os.path.join(os.path.dirname(__file__), "..", "wattra.db"))
+
+# --- Semantic memory (S2-5) ---
+# Optional Chroma + Gemini-embedding layer over the SQLite preference store.
+# Degrades to keyword search when the flag is off, chromadb is not installed
+# or there is no GEMINI_API_KEY — the product never depends on it.
+SEMANTIC_MEMORY_ENABLED = os.getenv("WATTRA_SEMANTIC_MEMORY", "1").lower() in ("1", "true", "yes", "on")
+CHROMA_PATH = os.getenv("WATTRA_CHROMA_PATH", os.path.join(os.path.dirname(__file__), "..", "chroma"))
+GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
 
 # --- EPDK tariff (end-user price incl. taxes, TL/kWh) ---
 # Source: EPDK 4 April 2026 tariff table; sector compilations (June 2026).
@@ -48,6 +60,11 @@ TARIFF = {
         "three_zone": {"day": 5.80, "peak": 8.20, "night": 3.90},
     },
 }
+
+# Optional research/adapter hook: point this to a JSON file with 24-hour
+# `hourly_price` and optionally `hourly_sell_price` arrays to test dynamic
+# price-vector dispatch without changing the optimizer.
+PRICE_VECTOR_FILE = os.getenv("WATTRA_PRICE_VECTOR_FILE", "")
 
 # In hourly net-metering the sell price of surplus energy = that hour's retail
 # price − distribution fee − taxes ≈ retail × this ratio.

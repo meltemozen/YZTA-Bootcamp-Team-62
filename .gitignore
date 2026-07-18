@@ -5,6 +5,9 @@ __pycache__/
 *.db
 .pytest_cache/
 
+# Chroma vector store (S2-5 semantic memory — local data, never committed)
+backend/chroma/
+
 # Ortam değişkenleri — anahtarlar asla commit edilmez
 .env
 
@@ -22,3 +25,4 @@ data/scripts/*.csv
 .idea/
 Thumbs.db
 .DS_Store
+data/raw/

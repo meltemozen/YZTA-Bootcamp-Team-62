@@ -21,6 +21,7 @@ from ..schemas import AssistantResponse, HouseholdProfile
 from . import fallback
 from .context import ToolContext
 from .grounding import ungrounded_numbers
+from .local_llm import ollama_loop
 
 log = logging.getLogger(__name__)
 
@@ -50,8 +51,11 @@ KURALLAR:
 3. Önerinin NEDENİNİ tek cümleyle açıkla: güneş bol / puant pahalı / gece ucuz /
    saatlik mahsuplaşmada satış alıştan ~%30 ucuz olduğu için üretimi o saat içinde
    evde tüketmek kârlı.
-4. Kullanıcı bir alışkanlık, kısıt veya itiraz söylerse (örn. "salı öğlen evde yokum")
-   ÖNCE write_memory ile kaydet, SONRA optimize'ı yeni kısıtla tekrar çağırıp planı güncelle.
+4. Kullanıcı bir alışkanlık, kısıt veya itiraz söylerse (örn. "salı öğlen evde yokum",
+   "haftaya dışarıdayım") bunu MUTLAKA write_memory aracıyla kaydet. Aracı çağırmadan
+   ASLA "not aldım / dikkate alacağım" deme — kaydedilmeyen söz kullanıcıyı yanıltır.
+   Sıra: önce search_preferences ile benzer eski tercihlere bak (çelişki varsa nazikçe
+   sor), sonra write_memory, plan gerekiyorsa optimize'ı yeni kısıtla tekrar çağır.
 5. Saat dilimleri (üç zamanlı tarife): gündüz 06-17, puant 17-22 (en pahalı), gece 22-06 (en ucuz).
    Mevzuat bilgin: mahsuplaşma 1 Mayıs 2026'dan beri SAATLİKTİR; mesken tek zamanlı
    tarife kademelidir (240 kWh/ay üstü daha pahalı); mesken çatı GES sınırı 10 kW.
@@ -87,8 +91,17 @@ TOOL_DEFINITIONS = [
     {"name": "read_memory",
      "description": "Kullanıcının kayıtlı tercih ve alışkanlıklarını getirir.",
      "parameters": {"type": "object", "properties": {}}},
+    {"name": "search_preferences",
+     "description": "Kullanıcının geçmiş tercihleri içinde ANLAMCA benzer olanları bulur "
+                    "(semantik arama). Yeni bir tercih/itiraz geldiğinde ya da plana etki "
+                    "edebilecek eski alışkanlıkları hatırlamak için kullan.",
+     "parameters": {"type": "object", "properties": {
+         "query": {"type": "string", "description": "Aranacak tercih/konu (serbest metin)"}},
+         "required": ["query"]}},
     {"name": "write_memory",
-     "description": "Kullanıcının söylediği kalıcı tercih/alışkanlığı hafızaya yazar.",
+     "description": "Kullanıcının söylediği kalıcı tercih/alışkanlığı hafızaya yazar. "
+                    "Kullanıcı bir tercih, kısıt veya itiraz bildirdiğinde HER SEFERİNDE "
+                    "çağrılmalıdır — çağrılmazsa tercih kaybolur.",
      "parameters": {"type": "object", "properties": {
          "text": {"type": "string"}}, "required": ["text"]}},
 ]
@@ -132,24 +145,57 @@ def _gemini_loop(context: ToolContext, message: str) -> str:
     return "Planı kurdum ama açıklamayı kısa kesmek zorunda kaldım — plan kartlarına bakabilirsin."
 
 
+def _safe_response(context: ToolContext, text: str, message: str,
+                   agent_mode: str) -> AssistantResponse:
+    if context.last_plan is not None:
+        bad = ungrounded_numbers(text, context.last_plan)
+        if bad:
+            log.warning("Ungrounded numbers in %s reply: %s", agent_mode, bad)
+            text = fallback.reply(context, message)
+            return AssistantResponse(reply=text, plan=context.last_plan,
+                                     agent_mode="fallback", tool_calls=context.calls)
+    return AssistantResponse(reply=text, plan=context.last_plan,
+                             agent_mode=agent_mode, tool_calls=context.calls)
+
+
+def _ensure_preference_persisted(context: ToolContext, message: str) -> None:
+    """Code-level backstop for prompt rule 4 (same philosophy as the grounding
+    guard): an LLM that says "not aldım" WITHOUT calling write_memory silently
+    drops the preference. If the message states a preference and no write
+    happened in this turn, persist it deterministically."""
+    if not message or not fallback.is_preference(message):
+        return
+    if any(call.startswith("write_memory") for call in context.calls):
+        return
+    log.warning("LLM skipped write_memory for a preference; persisting via backstop")
+    context.write_memory(message.strip())
+
+
 def assistant_reply(user_id: int, profile: HouseholdProfile, message: str) -> AssistantResponse:
     context = ToolContext(user_id, profile)
 
     if config.GEMINI_API_KEY:
         try:
             text = _gemini_loop(context, message)
-            # Honesty guard: never ship an LLM reply that invents figures.
-            if context.last_plan is not None:
-                bad = ungrounded_numbers(text, context.last_plan)
-                if bad:
-                    log.warning("Ungrounded numbers in agent reply: %s", bad)
-                    text = fallback.reply(context, message)
-                    return AssistantResponse(reply=text, plan=context.last_plan,
-                                             agent_mode="fallback", tool_calls=context.calls)
-            return AssistantResponse(reply=text, plan=context.last_plan,
-                                     agent_mode="gemini", tool_calls=context.calls)
+            _ensure_preference_persisted(context, message)
+            return _safe_response(context, text, message, "gemini")
         except Exception:
             log.exception("Gemini orchestration failed, falling back")
+
+    if config.OLLAMA_ENABLED:
+        try:
+            text = ollama_loop(
+                context,
+                message,
+                system_prompt=SYSTEM_PROMPT,
+                tool_definitions=TOOL_DEFINITIONS,
+                clean_args=_clean_args,
+                max_steps=MAX_STEPS,
+            )
+            _ensure_preference_persisted(context, message)
+            return _safe_response(context, text, message, "ollama")
+        except Exception:
+            log.exception("Ollama orchestration failed, falling back")
 
     text = fallback.reply(context, message)
     return AssistantResponse(reply=text, plan=context.last_plan,

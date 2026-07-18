@@ -14,6 +14,7 @@ from ..tools import (
     get_weather,
     optimize,
     read_memory,
+    search_preferences,
     write_memory,
 )
 
@@ -92,8 +93,9 @@ class ToolContext:
             self.forecast_consumption(str(d))
         if d not in self._tariff:
             self.get_tariff(str(d))
+        current_hour = self._weather.get(d).current_hour if d in self._weather else None
         plan = optimize(self._production[d], self._consumption[d], self._tariff[d],
-                        self.profile, set(blocked_hours or []))
+                        self.profile, set(blocked_hours or []), current_hour=current_hour)
         self.last_plan = plan
         db.save_plan(self.user_id, plan)
         return {
@@ -110,6 +112,10 @@ class ToolContext:
     def read_memory(self) -> list[dict]:
         self.calls.append("read_memory")
         return read_memory(self.user_id)
+
+    def search_preferences(self, query: str) -> list[dict]:
+        self.calls.append(f"search_preferences({query[:40]})")
+        return search_preferences(self.user_id, query)
 
     def write_memory(self, text: str) -> dict:
         self.calls.append(f"write_memory({text[:40]})")
