@@ -42,7 +42,7 @@
       "duration_h": 3,
       "earliest": 0,
       "latest": 23,
-      "flexibility": "shiftable",
+      "flexibility": "interruptible",
       "source": "Level 2 home charging typical 7.2-7.4 kW; partial daily top-up"
     },
     {
@@ -53,7 +53,7 @@
       "duration_h": 5,
       "earliest": 0,
       "latest": 23,
-      "flexibility": "shiftable",
+      "flexibility": "interruptible",
       "source": "Level 2 home charging, larger overnight/solar top-up"
     },
     {
@@ -86,7 +86,7 @@
       "duration_h": 4,
       "earliest": 8,
       "latest": 20,
-      "flexibility": "shiftable",
+      "flexibility": "interruptible",
       "source": "pool pump daily circulation"
     },
     {
@@ -97,7 +97,7 @@
       "duration_h": 3,
       "earliest": 6,
       "latest": 21,
-      "flexibility": "shiftable",
+      "flexibility": "interruptible",
       "source": "small agricultural irrigation pump"
     },
     {

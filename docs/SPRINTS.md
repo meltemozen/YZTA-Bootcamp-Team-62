@@ -156,12 +156,17 @@ Tool imzaları değişmez, yalnız `memory.py` genişler.
 **Kabul kriteri:** semantik geri getirme çalışıyor · mevcut read/write_memory imzası bozulmadı · anahtarsız ortamda SQLite'a düşüyor.
 **Kod:** `backend/app/tools/memory.py`
 
-### S2-6 · Cihaz kataloğu + EV şarj ince ayarı  `[YZ · 3 SP · 🟡 branch]`
-**Kart açıklaması:** Cihaz referans tablosunu güç/süre/kategori/kaynak metadata'sı
-ile genişlet; EV Level 2 şarjı gibi büyük esnek yükler için gerçekçi pencere/güç
-parametreleri ekle ve optimizasyonu test et.
-**Kabul kriteri:** EV senaryosu bloklu saatlere girmiyor · katalog ≥10 cihaz · cihazlarda `power_kw/category/source` metadata var.
-**Kod:** `backend/app/data/devices.json` · `backend/app/tools/optimize.py`
+### S2-6 · Cihaz kataloğu + EV şarj senaryosu (güç-bilinçli, kesintili)  `[YZ · 3 SP · ✅]`
+**Kart açıklaması:** Cihaz kataloğu güç/süre/kategori/kaynak metadata'sıyla 12
+cihaza çıkarıldı. Optimizer artık `power_kw`'yi FİZİKSEL kısıt olarak kullanıyor:
+bir çalıştırma `kwh/power_kw` saatten hızlı bitemez (kullanıcı 22 kWh EV şarjına
+1 saat yazsa bile plan 3 saate yayılır). EV şarjı ve pompalar
+`flexibility="interruptible"` — şarj DURAKLAYABİLİR: saatler marjinal maliyete
+göre tek tek seçilir, bloke saatlerin etrafından dolaşır ve güneş penceresine
+yapışır; bölünmüş plan mobile "(1. bölüm) / (2. bölüm)" kartları olarak iner.
+Çamaşır/bulaşık gibi cihazlar kesintisiz blok kalır (davranış değişmedi).
+**Kabul kriteri:** EV bloke öğle saatinin etrafından dolaşıp güneş penceresinde kalıyor · üç zamanlıda EV asla 17-22 puanta girmiyor · `kwh>power_kw×süre` fizibilite düzeltmesi çalışıyor · katalog ≥10 cihaz ve tüm satırlar `Device` şemasını geçiyor · 5 yeni test.
+**Kod:** `backend/app/data/devices.json` · `backend/app/tools/optimize.py` · `backend/tests/test_core.py`
 
 ### S2-7 · Expo konum izni + konuma göre hava kontrolü  `[YZ · 5 SP · 🟡 branch]`
 **Kart açıklaması:** Onboarding'de kullanıcıdan konum izni iste; izin verilirse gerçek
