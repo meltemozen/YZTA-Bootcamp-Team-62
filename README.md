@@ -87,7 +87,9 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 ![Sprint Board Updates](docs/gorseller/sprint1_scrumboard2.png)
 
-![Sprint Board Updates](docs/gorseller/sprint1_burndownChart.png)
+**Sprint 1 Burndown Chart**
+
+![Sprint 1 Burndown Chart](docs/gorseller/sprint1_burndownChart.png)
 
 ![Sprint 1 System Architecture](docs/gorseller/sprint1_systemarchitecture.png)
 
@@ -119,20 +121,33 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 <details>
 <summary><h2>Sprint 2 (6 – 19 Temmuz) · 34 SP</h2></summary>
 
-**Hedef:** Baseline modelleri gerçek makine öğrenmesiyle değiştir; agent'ı canlı
-Gemini anahtarıyla sağlamlaştır. Kontrat sabit — yalnız tool gövdeleri değişir.
+**Sprint hedefi:** Tahmin motorunu v1 model artifact'leriyle güçlendirmek ve planı
+kullanıcının gerçek konumu + anlık/gelecek hava tahminiyle üretmek.
 
-| # | Görev | Ekip | SP |
-|---|---|---|---|
-| S2-1 | LightGBM üretim modeli v1 (`production.py` gövdesi; `model_version`→`v1-lightgbm`) | VB | 8 |
-| S2-2 | LightGBM tüketim modeli v1 (`consumption.py` gövdesi) | VB | 8 |
-| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 |
-| S2-4 | Gemini anahtarıyla uçtan uca agent testi + prompt iyileştirme | YZ | 5 |
-| S2-5 | Chroma semantik hafıza (`memory.py` genişletme; imza sabit) | YZ | 5 |
-| S2-6 | Cihaz kataloğu genişletme + EV şarj senaryosu ince ayarı | YZ | 3 |
+**Bu branch'te yapılan işler:**
 
-**Sprint 2 demo kriteri:** "Çamaşırı 13:00'te at" önerisi v1 LightGBM üretim
-tahminiyle üretiliyor; kullanıcı itirazıyla değişiyor; hafıza tercihi hatırlıyor.
+**Sprint 2 Scrum Board**
+
+![Sprint 2 Scrum Board](docs/gorseller/sprint2_scrumboard.png)
+
+| Kart | Ekip | SP | Durum | Kod karşılığı |
+|---|---|---:|---|---|
+| S2-1 Weather-aware üretim modeli v1 | VB | 8 | Branch'te | `backend/app/tools/production.py`, `backend/app/models/production_v1.json`, `data/scripts/train_production_model.py` |
+| S2-2 Generic smart-meter tüketim modeli v1 | VB | 8 | Branch'te | `backend/app/tools/consumption.py`, `backend/app/models/consumption_v1.json`, `data/scripts/train_consumption_model.py` |
+| S2-4 Gemini/Ollama provider zinciri | YZ | 5 | Branch'te | `backend/app/agent/orchestrator.py`, `backend/app/agent/local_llm.py`, `backend/app/config.py` |
+| S2-6 Cihaz kataloğu + EV şarj metadata'sı | YZ | 3 | Branch'te | `backend/app/data/devices.json`, `backend/app/tools/optimize.py`, `docs/research/DEVICE_AND_EV_ASSUMPTIONS.md` |
+| S2-7 Expo konum izni + hava kontrolü | YZ | 5 | Branch'te | `mobile/src/screens/Onboarding.js`, `mobile/src/api.js`, `backend/app/main.py` |
+| S2-8 Gerçek zamanlı optimizer + performans | YZ | 5 | Branch'te | `backend/app/tools/weather.py`, `backend/app/tools/optimize.py`, `backend/app/tools/tariff.py`, `docs/research/ENERGY_OPTIMIZATION_RESEARCH.md` |
+
+**Notlar**
+
+- Çalışma branch'i: `ml/s2-weather-local-llm`.
+- Model yaklaşımı LightGBM'e kilitlenmedi. Öncelik doğru runtime girdileri:
+  konum, bugün/yarın hava tahmini, ışınım, sıcaklık, bulut ve fatura kalibrasyonu.
+- Üretim modeli PVGIS CSV ile yeniden eğitilebilir. Tüketim modeli açık smart-meter
+  CSV'lerinden saatlik şekil çıkarıp kullanıcının faturasıyla ölçekler.
+- Plan her çağrıda yeniden optimize edilir; bugünün geçmiş saatleri cihaz ve batarya
+  dispatch için otomatik bloklanır.
 
 </details>
 
