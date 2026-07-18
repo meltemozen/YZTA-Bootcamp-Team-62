@@ -15,6 +15,11 @@
 > query, top_k=5)` — Chroma + Gemini embedding ile anlamca benzer tercihleri
 > getirir; katman yoksa SQLite kelime eşleşmesine düşer. `read_memory` /
 > `write_memory` imzaları DEĞİŞMEDİ; mevcut şemalara dokunulmadı. Geriye uyumlu.
+> **v1.4 (9 Temmuz 2026, S2-6):** Davranış eki, şema DEĞİŞMEDİ: `optimize`
+> artık `Device.power_kw`'yi fiziksel kısıt sayar (efektif süre ≥ kwh/power_kw)
+> ve `Device.flexibility="interruptible"` cihazları (EV şarjı, pompa) kesintili
+> yerleştirebilir. Bölünmüş yerleşim, mevcut `PlanItem` şemasıyla **bitişik
+> segment başına bir kalem** olarak döner (ad soneki "(N. bölüm)"). Geriye uyumlu.
 
 ## Tool listesi
 

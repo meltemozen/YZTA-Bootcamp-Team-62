@@ -212,7 +212,7 @@ def test_multi_device_optimizer_reports_coordinate_descent_metadata():
     ev = next(i for i in plan.items if i.name.startswith("Elektrikli araç"))
     ev_hours = {(ev.start_h + i) % 24 for i in range(3)}
     assert not ev_hours & {8, 9}
-    assert plan.chart_data["optimization"]["device_optimizer"] == "greedy+coordinate_descent"
+    assert plan.chart_data["optimization"]["device_optimizer"] == "greedy+coordinate_descent+interruptible"
     assert plan.chart_data["optimization"]["cost_evaluations"] > 0
 
 
@@ -237,3 +237,97 @@ def test_self_consumption_ratio_sane():
     plan = optimize(production, consumption, tariff, profile)
     assert 0 <= plan.self_consumption_ratio <= 1
     assert plan.co2_saved_kg > 0
+
+
+# --- S2-6: EV charging scenario (power feasibility + interruptible placement) ---
+
+def _ev(name="Elektrikli araç şarjı", kwh=22.0, duration_h=3, **kw):
+    defaults = dict(power_kw=7.4, earliest=8, latest=23,
+                    category="ev_charger", flexibility="interruptible")
+    defaults.update(kw)
+    return Device(name=name, kwh=kwh, duration_h=duration_h, **defaults)
+
+
+def test_ev_power_feasibility_extends_duration():
+    """A 22 kWh top-up on a 7.4 kW charger physically needs 3 hours; a user
+    typo of duration_h=1 must not compress it into one hour."""
+    profile = make_profile(devices=[_ev(duration_h=1)])
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=450)
+
+    plan = optimize(production, consumption, tariff, profile)
+    ev_items = [i for i in plan.items if i.type == "device"]
+    total_hours = sum((i.end_h - i.start_h) % 24 for i in ev_items)
+    assert total_hours == 3  # ceil(22.0 / 7.4)
+
+
+def test_ev_interruptible_splits_around_blocked_hour():
+    """EV charging can pause: with an hour blocked in the middle of the solar
+    window the charger routes around it instead of abandoning the window."""
+    profile = make_profile(devices=[_ev()])
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=450)
+
+    blocked = {12, 13}
+    plan = optimize(production, consumption, tariff, profile, blocked_hours=blocked)
+    ev_items = [i for i in plan.items if i.type == "device"]
+    hours = set()
+    for item in ev_items:
+        hours |= set(range(item.start_h, item.start_h + (item.end_h - item.start_h) % 24))
+    assert len(hours) == 3
+    assert not hours & blocked
+    # Still inside the productive part of the day (sunny profile peaks 9-16).
+    assert hours <= set(range(9, 17)), hours
+    # Split placements are labeled per segment for the mobile plan cards.
+    if len(ev_items) > 1:
+        assert all("bölüm" in i.name for i in ev_items)
+
+
+def test_ev_interruptible_never_enters_peak_three_zone():
+    profile = make_profile(tariff_type="three_zone", devices=[_ev()])
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "three_zone")
+
+    plan = optimize(production, consumption, tariff, profile)
+    for item in (i for i in plan.items if i.type == "device"):
+        span = set(range(item.start_h, item.start_h + (item.end_h - item.start_h) % 24))
+        assert not any(17 <= h < 22 for h in span)
+
+
+def test_shiftable_appliance_stays_contiguous():
+    """The interruptible path must not leak into ordinary appliances: a washing
+    machine still runs as one uninterrupted block."""
+    profile = make_profile()  # Çamaşır makinesi, flexibility unset
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=300)
+
+    plan = optimize(production, consumption, tariff, profile,
+                    blocked_hours={12})
+    device_items = [i for i in plan.items if i.type == "device"]
+    assert len(device_items) == 1
+    assert "bölüm" not in device_items[0].name
+    assert (device_items[0].end_h - device_items[0].start_h) % 24 == 2
+
+
+def test_device_catalog_has_ev_and_interruptible_metadata():
+    """Catalog acceptance for S2-6: ≥10 devices, EV entries physically
+    consistent (kwh ≤ power_kw × schedulable hours) and marked interruptible."""
+    import json
+    import os
+    path = os.path.join(os.path.dirname(__file__), "..", "app", "data", "devices.json")
+    with open(path, encoding="utf-8") as f:
+        catalog = json.load(f)["devices"]
+    assert len(catalog) >= 10
+    evs = [d for d in catalog if d.get("category") == "ev_charger"]
+    assert evs, "catalog must offer EV charging"
+    for ev in evs:
+        assert ev["flexibility"] == "interruptible"
+        assert ev["kwh"] <= ev["power_kw"] * ev["duration_h"] + 1e-6 or \
+            ev["kwh"] <= ev["power_kw"] * (ev["latest"] - ev["earliest"] + 1)
+    # Every catalog row must satisfy the locked Device schema.
+    for row in catalog:
+        Device(**row)
