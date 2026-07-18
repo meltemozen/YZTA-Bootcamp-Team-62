@@ -19,6 +19,7 @@ dist/
 # Veri dosyaları (büyük CSV'ler repoya girmez)
 data/*.csv
 data/scripts/*.csv
+backend/chroma/
 
 # IDE / OS
 .vscode/
