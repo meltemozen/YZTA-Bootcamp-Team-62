@@ -38,6 +38,8 @@ export const api = {
   updateProfile: (id, profile) =>
     request(`/api/profile/${id}`, { method: 'PUT', body: JSON.stringify(profile) }),
   plan: (id, day = 'today') => request(`/api/plan/${id}?day=${day}`),
+  weatherCheck: ({ lat, lon, panel_kw = 5, day = 'today' }) =>
+    request(`/api/weather-check?lat=${lat}&lon=${lon}&panel_kw=${panel_kw}&day=${day}`),
   assistant: (user_id, message) =>
     request('/api/assistant', { method: 'POST', body: JSON.stringify({ user_id, message }) }),
   feedback: (body) =>

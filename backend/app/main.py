@@ -1,4 +1,4 @@
-"""Voltaic API — FastAPI application.
+"""Wattra API — FastAPI application.
 
 Endpoints map one-to-one to the mobile app screens:
   POST /api/register        → Onboarding
@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import time
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,9 +32,12 @@ from .schemas import (
     MonthlyReport,
     RegisterRequest,
     RegisterResponse,
+    WeatherCheck,
 )
 from .services.notifications import notifications
 from .services.report import monthly_report
+from .tools.production import forecast_production
+from .tools.weather import get_weather
 
 APP_VERSION = "0.1.0"
 
@@ -43,18 +46,18 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-app = FastAPI(title="Voltaic API", version=APP_VERSION,
+app = FastAPI(title="Wattra API", version=APP_VERSION,
               description="Rooftop-PV energy assistant — tailored for Turkey")
 
-# CORS origins are env-driven for production: set VOLTAIC_CORS_ORIGINS to a
+# CORS origins are env-driven for production: set WATTRA_CORS_ORIGINS to a
 # comma-separated allow-list (e.g. the deployed web URL). Defaults to "*" for
 # local development and Expo Go.
-_origins = os.getenv("VOLTAIC_CORS_ORIGINS", "*").strip()
+_origins = os.getenv("WATTRA_CORS_ORIGINS", "*").strip()
 _allow_origins = ["*"] if _origins == "*" else [o.strip() for o in _origins.split(",") if o.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_allow_origins, allow_methods=["*"],
                    allow_headers=["*"])
 
-log = logging.getLogger("voltaic.api")
+log = logging.getLogger("wattra.api")
 
 
 @app.middleware("http")
@@ -82,8 +85,37 @@ db.init_db()
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": APP_VERSION,
-            "agent": "gemini" if config.GEMINI_API_KEY else "fallback"}
+    agent = "gemini" if config.GEMINI_API_KEY else "ollama" if config.OLLAMA_ENABLED else "fallback"
+    return {"status": "ok", "version": APP_VERSION, "agent": agent}
+
+
+@app.get("/api/weather-check", response_model=WeatherCheck)
+def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "today"):
+    if day in ("today", "bugun", "bugün"):
+        target = date.today()
+    elif day in ("tomorrow", "yarin", "yarın"):
+        target = date.today() + timedelta(days=1)
+    else:
+        try:
+            target = date.fromisoformat(day)
+        except ValueError as err:
+            raise HTTPException(400, "Geçersiz tarih") from err
+    weather = get_weather(lat, lon, target)
+    production = forecast_production(weather, panel_kw)
+    peak_hour = max(range(24), key=lambda h: weather.irradiance_wm2[h])
+    return WeatherCheck(
+        date=target,
+        lat=lat,
+        lon=lon,
+        total_irradiance_kwh_m2=round(sum(weather.irradiance_wm2) / 1000, 2),
+        peak_irradiance_wm2=round(weather.irradiance_wm2[peak_hour], 1),
+        peak_hour=peak_hour,
+        avg_cloud_pct=round(sum(weather.cloud_pct) / 24, 1),
+        min_temp_c=round(min(weather.temp_c), 1),
+        max_temp_c=round(max(weather.temp_c), 1),
+        production_model_version=production.model_version,
+        estimated_production_kwh=production.total_kwh,
+    )
 
 
 @app.post("/api/register", response_model=RegisterResponse)

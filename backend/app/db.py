@@ -82,11 +82,12 @@ def update_user(user_id: int, profile: HouseholdProfile) -> None:
 
 # --- Memory (preferences) ---
 
-def add_preference(user_id: int, text: str, source: str = "user") -> None:
+def add_preference(user_id: int, text: str, source: str = "user") -> int:
     with connect() as con:
-        con.execute(
+        cur = con.execute(
             "INSERT INTO preference (user_id, text, source, date) VALUES (?, ?, ?, ?)",
             (user_id, text, source, datetime.now().isoformat()))
+        return cur.lastrowid
 
 
 def preferences(user_id: int, limit: int = 20) -> list[dict]:
@@ -94,6 +95,15 @@ def preferences(user_id: int, limit: int = 20) -> list[dict]:
         rows = con.execute(
             "SELECT text, source, date FROM preference WHERE user_id = ? "
             "ORDER BY id DESC LIMIT ?", (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def preferences_with_ids(user_id: int) -> list[dict]:
+    """All preferences incl. row ids — used by the semantic index backfill."""
+    with connect() as con:
+        rows = con.execute(
+            "SELECT id, text, source, date FROM preference WHERE user_id = ? "
+            "ORDER BY id", (user_id,)).fetchall()
     return [dict(r) for r in rows]
 
 

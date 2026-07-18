@@ -1,0 +1,8 @@
+# Optional semantic-memory layer (S2-5): Chroma vector store; embeddings come
+# from the Gemini API (google-genai is already a base dependency).
+# Install on top of the base requirements when semantic search is wanted:
+#   pip install -r requirements-semantic.txt
+# NOT part of the base image or CI: without it, memory degrades to SQLite
+# keyword search (see backend/app/tools/memory.py).
+-r requirements.txt
+chromadb>=1.0,<2.0

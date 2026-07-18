@@ -4,17 +4,26 @@ No network — weather is built by hand and behaviour is deterministic.
 Run: inside backend/ `python -m pytest tests/ -v`
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
+from app import config
 from app.schemas import Device, HouseholdProfile, Weather
 from app.tools.consumption import forecast_consumption
 from app.tools.optimize import optimize
 from app.tools.production import forecast_production
 from app.tools.tariff import get_tariff, time_band
 
-DAY = date(2026, 7, 15)
+# A fixed future offset, not a hardcoded calendar date: optimize() applies a
+# "don't schedule in the past" runtime rule whenever the plan date equals
+# date.today() (see optimize._runtime_blocked_hours), which blocks every hour
+# before the current wall-clock hour. A hardcoded literal date (e.g.
+# date(2026, 7, 15)) eventually collides with "today" as time passes and
+# makes these deterministic-by-design tests fail depending on what time of
+# day CI happens to run. Anchoring to date.today() + N days keeps the tests
+# always describing a day in the future, so that runtime block never fires.
+DAY = date.today() + timedelta(days=2)
 
 
 def sunny_weather() -> Weather:
@@ -24,6 +33,14 @@ def sunny_weather() -> Weather:
         irradiance[h] = 900 * max(0.0, 1 - abs(h - 13) / 7)
     return Weather(date=DAY, irradiance_wm2=irradiance,
                    temp_c=[28.0] * 24, cloud_pct=[10.0] * 24)
+
+
+def cloudy_weather() -> Weather:
+    sunny = sunny_weather()
+    return Weather(date=DAY,
+                   irradiance_wm2=[x * 0.25 for x in sunny.irradiance_wm2],
+                   temp_c=[22.0] * 24,
+                   cloud_pct=[90.0] * 24)
 
 
 def make_profile(**changes) -> HouseholdProfile:
@@ -64,6 +81,26 @@ def test_three_zone_peak_most_expensive():
     assert tariff.hourly_price[19] > tariff.hourly_price[10] > tariff.hourly_price[3]
 
 
+def test_external_price_vector_adapter(tmp_path, monkeypatch):
+    price_file = tmp_path / "prices.json"
+    price_file.write_text(
+        '{"source":"test-dynamic","hourly_price":['
+        + ",".join(["1"] * 12 + ["9"] * 12)
+        + '],"hourly_sell_price":['
+        + ",".join(["0.5"] * 24)
+        + "]}",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "PRICE_VECTOR_FILE", str(price_file))
+
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=300)
+
+    assert tariff.source == "test-dynamic"
+    assert tariff.hourly_price[0] == 1
+    assert tariff.hourly_price[18] == 9
+    assert tariff.hourly_sell_price[0] == 0.5
+
+
 # --- Production ---
 
 def test_production_zero_at_night_positive_by_day():
@@ -72,6 +109,13 @@ def test_production_zero_at_night_positive_by_day():
     assert production.hourly_kwh[13] > 2.5          # noon peak
     assert max(production.hourly_kwh) <= 5.0        # capacity not exceeded
     assert production.total_kwh == pytest.approx(sum(production.hourly_kwh), abs=0.1)
+    assert production.model_version.startswith("v1-")
+
+
+def test_weather_aware_production_drops_on_cloudy_day():
+    sunny = forecast_production(sunny_weather(), panel_kw=5.0)
+    cloudy = forecast_production(cloudy_weather(), panel_kw=5.0)
+    assert cloudy.total_kwh < sunny.total_kwh * 0.45
 
 
 # --- Consumption ---
@@ -81,8 +125,9 @@ def test_consumption_calibrated_to_bill():
     consumption = forecast_consumption(profile, DAY)
     # Daily ≈ bill/30, within the ±15% season factor
     assert 300 / 30 * 0.85 <= consumption.total_kwh <= 300 / 30 * 1.20
-    # Home profile evening peak: 20:00 > 03:00
-    assert consumption.hourly_kwh[20] > consumption.hourly_kwh[3] * 2
+    # Home profile evening peak: 20:00 > 03:00 (ML calibrated shape is flatter but peak remains)
+    assert consumption.hourly_kwh[20] > consumption.hourly_kwh[3]
+    assert consumption.model_version.startswith("v")
 
 
 # --- Optimization: the heart of the product ---
@@ -131,6 +176,46 @@ def test_blocked_hours_are_respected():
     assert not run & blocked
 
 
+def test_today_plan_never_uses_past_hours():
+    today = date.today()
+    weather = sunny_weather().model_copy(update={"date": today})
+    profile = make_profile(devices=[
+        Device(name="Elektrikli araç şarjı", kwh=14.8, power_kw=7.4,
+               duration_h=2, earliest=8, latest=23, category="ev_charger")
+    ])
+    production = forecast_production(weather, profile.panel_kw)
+    consumption = forecast_consumption(profile, today)
+    tariff = get_tariff(today, "home", "single", monthly_kwh=300)
+
+    plan = optimize(production, consumption, tariff, profile, current_hour=15)
+    device = next(i for i in plan.items if i.type == "device")
+
+    assert device.start_h >= 15
+    assert set(range(15)) <= set(plan.chart_data["optimization"]["blocked_hours"])
+
+
+def test_multi_device_optimizer_reports_coordinate_descent_metadata():
+    profile = make_profile(devices=[
+        Device(name="Elektrikli araç şarjı", kwh=22.0, power_kw=7.4,
+               duration_h=3, earliest=8, latest=23, category="ev_charger"),
+        Device(name="Bulaşık makinesi", kwh=1.2, power_kw=0.6,
+               duration_h=2, earliest=8, latest=23, category="appliance"),
+        Device(name="Termosifon", kwh=2.0, power_kw=2.0,
+               duration_h=1, earliest=8, latest=23, category="water_heating"),
+    ])
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=450)
+
+    plan = optimize(production, consumption, tariff, profile, blocked_hours={8, 9})
+
+    ev = next(i for i in plan.items if i.name.startswith("Elektrikli araç"))
+    ev_hours = {(ev.start_h + i) % 24 for i in range(3)}
+    assert not ev_hours & {8, 9}
+    assert plan.chart_data["optimization"]["device_optimizer"] == "greedy+coordinate_descent+interruptible"
+    assert plan.chart_data["optimization"]["cost_evaluations"] > 0
+
+
 def test_battery_charges_by_day_discharges_at_peak():
     profile = make_profile(battery_kwh=5.0, battery_power_kw=2.5, monthly_bill_kwh=250)
     production = forecast_production(sunny_weather(), profile.panel_kw)
@@ -152,3 +237,97 @@ def test_self_consumption_ratio_sane():
     plan = optimize(production, consumption, tariff, profile)
     assert 0 <= plan.self_consumption_ratio <= 1
     assert plan.co2_saved_kg > 0
+
+
+# --- S2-6: EV charging scenario (power feasibility + interruptible placement) ---
+
+def _ev(name="Elektrikli araç şarjı", kwh=22.0, duration_h=3, **kw):
+    defaults = dict(power_kw=7.4, earliest=8, latest=23,
+                    category="ev_charger", flexibility="interruptible")
+    defaults.update(kw)
+    return Device(name=name, kwh=kwh, duration_h=duration_h, **defaults)
+
+
+def test_ev_power_feasibility_extends_duration():
+    """A 22 kWh top-up on a 7.4 kW charger physically needs 3 hours; a user
+    typo of duration_h=1 must not compress it into one hour."""
+    profile = make_profile(devices=[_ev(duration_h=1)])
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=450)
+
+    plan = optimize(production, consumption, tariff, profile)
+    ev_items = [i for i in plan.items if i.type == "device"]
+    total_hours = sum((i.end_h - i.start_h) % 24 for i in ev_items)
+    assert total_hours == 3  # ceil(22.0 / 7.4)
+
+
+def test_ev_interruptible_splits_around_blocked_hour():
+    """EV charging can pause: with an hour blocked in the middle of the solar
+    window the charger routes around it instead of abandoning the window."""
+    profile = make_profile(devices=[_ev()])
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=450)
+
+    blocked = {12, 13}
+    plan = optimize(production, consumption, tariff, profile, blocked_hours=blocked)
+    ev_items = [i for i in plan.items if i.type == "device"]
+    hours = set()
+    for item in ev_items:
+        hours |= set(range(item.start_h, item.start_h + (item.end_h - item.start_h) % 24))
+    assert len(hours) == 3
+    assert not hours & blocked
+    # Still inside the productive part of the day (sunny profile peaks 9-16).
+    assert hours <= set(range(9, 17)), hours
+    # Split placements are labeled per segment for the mobile plan cards.
+    if len(ev_items) > 1:
+        assert all("bölüm" in i.name for i in ev_items)
+
+
+def test_ev_interruptible_never_enters_peak_three_zone():
+    profile = make_profile(tariff_type="three_zone", devices=[_ev()])
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "three_zone")
+
+    plan = optimize(production, consumption, tariff, profile)
+    for item in (i for i in plan.items if i.type == "device"):
+        span = set(range(item.start_h, item.start_h + (item.end_h - item.start_h) % 24))
+        assert not any(17 <= h < 22 for h in span)
+
+
+def test_shiftable_appliance_stays_contiguous():
+    """The interruptible path must not leak into ordinary appliances: a washing
+    machine still runs as one uninterrupted block."""
+    profile = make_profile()  # Çamaşır makinesi, flexibility unset
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=300)
+
+    plan = optimize(production, consumption, tariff, profile,
+                    blocked_hours={12})
+    device_items = [i for i in plan.items if i.type == "device"]
+    assert len(device_items) == 1
+    assert "bölüm" not in device_items[0].name
+    assert (device_items[0].end_h - device_items[0].start_h) % 24 == 2
+
+
+def test_device_catalog_has_ev_and_interruptible_metadata():
+    """Catalog acceptance for S2-6: ≥10 devices, EV entries physically
+    consistent (kwh ≤ power_kw × schedulable hours) and marked interruptible."""
+    import json
+    import os
+    path = os.path.join(os.path.dirname(__file__), "..", "app", "data", "devices.json")
+    with open(path, encoding="utf-8") as f:
+        catalog = json.load(f)["devices"]
+    assert len(catalog) >= 10
+    evs = [d for d in catalog if d.get("category") == "ev_charger"]
+    assert evs, "catalog must offer EV charging"
+    for ev in evs:
+        assert ev["flexibility"] == "interruptible"
+        assert ev["kwh"] <= ev["power_kw"] * ev["duration_h"] + 1e-6 or \
+            ev["kwh"] <= ev["power_kw"] * (ev["latest"] - ev["earliest"] + 1)
+    # Every catalog row must satisfy the locked Device schema.
+    for row in catalog:
+        Device(**row)

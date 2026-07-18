@@ -120,6 +120,13 @@ export default function Today({ userId }) {
             }}>
               Aralık gösteriyoruz: tüketimin faturadan tahmin ediliyor — dürüst rakam.
             </Text>
+            {plan.chart_data.models && (
+              <Text style={{
+                fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.55)', marginTop: 5,
+              }}>
+                Model: {plan.chart_data.models.production} · {plan.chart_data.models.consumption}
+              </Text>
+            )}
           </LinearGradient>
 
           {/* Chart */}
@@ -142,7 +149,7 @@ export default function Today({ userId }) {
             <View style={card}>
               <Text style={text.body}>
                 Planlanacak esnek cihaz yok. Ayarlar'dan çamaşır makinesi gibi cihazlar ekle —
-                Voltaic onları en ucuz saate yerleştirsin.
+                Wattra onları en ucuz saate yerleştirsin.
               </Text>
             </View>
           ) : (

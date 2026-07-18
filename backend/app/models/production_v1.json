@@ -1,0 +1,16 @@
+{
+  "model_version": "v1-lightgbm",
+  "model_type": "lightgbm",
+  "model_file": "production_v1_lgbm.txt",
+  "trained_on": "data/raw/pvgis_hourly.csv + data/raw/open_meteo_hourly.csv, full history (no holdout \u2014 see compare_production_models.py for the held-out evaluation)",
+  "target": "hourly AC kWh per installed kWp",
+  "features": [
+    "irradiance_wm2",
+    "temp_loss_interaction",
+    "cloud_interaction",
+    "edge_hour_loss"
+  ],
+  "fallback_performance_ratio": 0.8,
+  "max_kw_per_kwp": 1.0,
+  "blend_with_physical": 0.0
+}

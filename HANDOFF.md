@@ -27,14 +27,14 @@ Bootcamp: Google YZTA 2026, AI & Data Science category. Delivery 2 Aug 2026.
    changing a function BODY only (see §6), never the signature/schema.
 3. **Never commit secrets.** `GEMINI_API_KEY` is read via `os.getenv` only; `.env`
    is gitignored. No keys in code, tests, or fixtures.
-4. **Keep it working.** Backend has 20 tests + ruff lint; both must stay green
+4. **Keep it working.** Backend has 27 tests + ruff lint; both must stay green
    (CI enforces on every push/PR). Mobile UI must remain runnable.
 
 ## 3. Architecture
 
 ```
 Open-Meteo (live) ┐                         ┌ get_weather
-PVGIS (history)   ┤  ML tool layer (VB)     ├ forecast_production   (v0 physical → v1 LightGBM)
+PVGIS (history)   ┤  ML tool layer (VB)     ├ forecast_production   (v0 physical → v1 weather artifact)
 EPDK tariff       ┤  + rule engines         ├ forecast_consumption  (bill calibration → v1)
 Bill (calibration)┘                         ├ get_tariff            (tiers + hourly net-metering)
                                             ├ optimize              (deterministic plan)
@@ -71,7 +71,7 @@ beats exporting — this is why the optimizer shifts loads into solar hours.
 # Backend
 cd backend && pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000      # http://localhost:8000/docs
-python -m pytest tests/ -q                      # 20 tests, no network needed
+python -m pytest tests/ -q                      # 27 tests, no network needed
 ruff check .                                     # lint (CI runs this)
 
 # Mobile (needs node_modules; Turkish UI)
@@ -80,7 +80,7 @@ cd mobile && npm install && npx expo start       # phone via Expo Go, or --web
 ```
 
 Health check: `GET /api/health` → `{"agent":"gemini"}` if a key is set, else `"fallback"`.
-Env: `GEMINI_API_KEY` (optional), `GEMINI_MODEL`, `VOLTAIC_DB`, `VOLTAIC_CORS_ORIGINS`, `LOG_LEVEL`.
+Env: `GEMINI_API_KEY` (optional), `GEMINI_MODEL`, `WATTRA_DB`, `WATTRA_CORS_ORIGINS`, `LOG_LEVEL`.
 
 ## 6. Where we left off & what to work on next
 
@@ -93,8 +93,8 @@ CI, English codebase. See [docs/scrum/sprint-1](docs/scrum/sprint-1/).
 
 | Area | File (change the BODY only) | Task |
 |---|---|---|
-| Production model → LightGBM | `backend/app/tools/production.py` | S2-1 — keep signature + `ProductionForecast`, set `model_version="v1-lightgbm"`, train from `pvgis_fetch.py` output |
-| Consumption model → LightGBM | `backend/app/tools/consumption.py` | S2-2 — same rule; validate shape vs EPİAŞ (S2-3) |
+| Production model → weather-aware artifact | `backend/app/tools/production.py` | S2-1 — keep signature + `ProductionForecast`, set `model_version="v1-weather-regressor"`, retrain from PVGIS/Open-Meteo CSVs |
+| Consumption model → smart-meter shape artifact | `backend/app/tools/consumption.py` | S2-2 — same rule; validate shape vs EPİAŞ/public smart-meter profile (S2-3) |
 | Semantic memory → Chroma | `backend/app/tools/memory.py` | S2-5 — add `search_preferences(query)`, keep read/write signatures; fall back to SQLite without a store |
 | Agent prompt hardening | `backend/app/agent/orchestrator.py` | S2-4 — tune `SYSTEM_PROMPT`/tool descriptions against a live key |
 | Deploy | `mobile/app.json`, Docker | S3-2 — Railway/Cloud Run + EAS APK |

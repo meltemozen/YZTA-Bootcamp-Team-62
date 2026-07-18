@@ -7,7 +7,7 @@ offline, so the flow works in every environment.
 import os
 import tempfile
 
-os.environ["VOLTAIC_DB"] = os.path.join(tempfile.mkdtemp(), "test.db")
+os.environ["WATTRA_DB"] = os.path.join(tempfile.mkdtemp(), "test.db")
 os.environ.pop("GEMINI_API_KEY", None)
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import config  # noqa: E402
 
 config.GEMINI_API_KEY = ""
-config.DB_PATH = os.environ["VOLTAIC_DB"]
+config.DB_PATH = os.environ["WATTRA_DB"]
 
 from app.main import app  # noqa: E402
 
@@ -42,6 +42,15 @@ def test_health():
     assert resp.json()["agent"] == "fallback"
 
 
+def test_weather_check_uses_location_and_model():
+    resp = client.get("/api/weather-check?lat=38.42&lon=27.14&panel_kw=5&day=tomorrow")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["estimated_production_kwh"] >= 0
+    assert 0 <= body["peak_hour"] <= 23
+    assert body["production_model_version"].startswith("v1-")
+
+
 def test_end_to_end_flow():
     uid = _register()
 
@@ -51,6 +60,8 @@ def test_end_to_end_flow():
     body = plan.json()
     assert body["items"], "Plan must contain at least one item"
     assert body["total_saving_tl_max"] >= body["total_saving_tl_min"]
+    assert body["chart_data"]["models"]["production"].startswith("v")
+    assert body["chart_data"]["models"]["consumption"].startswith("v")
 
     # Assistant (reasoned Turkish reply in fallback mode)
     resp = client.post("/api/assistant", json={"user_id": uid,

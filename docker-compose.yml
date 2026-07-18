@@ -7,8 +7,8 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
     volumes:
-      - voltaic-data:/data
+      - wattra-data:/data
     restart: unless-stopped
 
 volumes:
-  voltaic-data:
+  wattra-data:

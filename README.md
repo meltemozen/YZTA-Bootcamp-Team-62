@@ -6,9 +6,6 @@
 > "şu cihazı şu saatte çalıştır" diye sade Türkçe konuşan, alışkanlıkları öğrenen
 > ve tasarrufu **TL + CO₂** olarak kanıtlayan agent tabanlı kişisel enerji asistanı.
 
-*(Ürün ismi değerlendirme aşamasındadır; marka çakışması nedeniyle yeni isim
-adayları belirlenmiştir.)*
-
 ---
 
 ## Takım Üyeleri
@@ -82,7 +79,7 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 ![Daily Scrum](docs/gorseller/sprint1_meet.png)
 
 
-**Sprint Board Ekran Görüntüleri**
+**Scrum Board Ekran Görüntüleri**
 ![Sprint Board Updates](docs/gorseller/sprint1_scrumboard.png)
 
 ![Sprint Board Updates](docs/gorseller/sprint1_scrumboard2.png)
@@ -91,9 +88,10 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 ![Sprint 1 Burndown Chart](docs/gorseller/sprint1_burndownChart.png)
 
+**Sistem Mimari Şeması**
 ![Sprint 1 System Architecture](docs/gorseller/sprint1_systemarchitecture.png)
 
-## Ürün Ekran Görüntüleri
+**Ürün Ekran Görüntüleri**
 
 | Onboarding | Günlük Plan | Asistan |
 |---|---|---|
@@ -125,6 +123,17 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 kullanıcının gerçek konumu + anlık/gelecek hava tahminiyle üretmek.
 
 **Bu branch'te yapılan işler:**
+
+| # | Görev | Ekip | SP | Durum |
+|---|---|---|---|---|
+| S2-1 | LightGBM üretim modeli v1 (nMAE %2.08, v0/XGB/RF/Ridge karşılaştırmalı) | VB | 8 | ✅ |
+| S2-2 | CatBoost tüketim modeli v1 (Kaggle+EPİAŞ kalibrasyonu, shape distillation) | VB | 8 | ✅ |
+| S2-3 | EPİAŞ şekil doğrulama + tüketim kalibrasyon raporu (METHOD §3) | VB | 5 | ✅ |
+| S2-4 | Gemini canlı test + prompt iyileştirme + Ollama provider zinciri | YZ | 5 | 🟡 devam |
+| S2-5 | Chroma semantik hafıza + Gemini embeddings (`search_preferences`) | YZ | 5 | ✅ |
+| S2-6 | Cihaz kataloğu + EV şarj senaryosu (güç-bilinçli planlama) | YZ | 3 | 🟡 devam |
+| S2-7 | Expo konum izni + konuma göre hava kontrolü | YZ | 5 | 🟡 branch |
+| S2-8 | Gerçek zamanlı optimizer + performans iyileştirme | YZ | 5 | 🟡 branch |
 
 **Sprint 2 Scrum Board**
 

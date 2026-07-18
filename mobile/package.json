@@ -1,5 +1,5 @@
 {
-  "name": "voltaic-mobile",
+  "name": "wattra-mobile",
   "version": "0.1.0",
   "main": "index.js",
   "scripts": {
@@ -19,6 +19,7 @@
     "expo-constants": "~17.1.6",
     "expo-font": "~13.3.1",
     "expo-linear-gradient": "~14.1.4",
+    "expo-location": "~18.1.6",
     "expo-notifications": "~0.31.4",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",

@@ -1,6 +1,6 @@
-# Voltaic — Sprint Planı & Product Backlog
+# Wattra — Sprint Planı & Product Backlog
 
-> Bu belge `Voltaic_Project_Sprints.pdf`'in yerini alır. Orijinal PDF planlanan
+> Bu belge `Wattra_Project_Sprints.pdf`'in yerini alır. Orijinal PDF planlanan
 > iş için yazılmıştı; bu belge **gerçekte yapılan işi** (Sprint 1 = teslim) ve
 > **kalan gerçek işi** (Sprint 2–3) yansıtır.
 >
@@ -11,7 +11,7 @@
 
 **Bootcamp takvimi:** Sprint 1 (19 Haz–5 Tem) · Sprint 2 (6–19 Tem) · Sprint 3 (20 Tem–2 Ağu). Teslim: 2 Ağustos 2026.
 
-**Toplam ≈ 103 SP** — Sprint 1: 48 (✅ teslim) · Sprint 2: 34 · Sprint 3: 21.
+**Toplam ≈ 113 SP** — Sprint 1: 48 (✅ teslim) · Sprint 2: 44 · Sprint 3: 21.
 Ayrıca aşağıda **Teknik Derinlik Backlog'u (YZ ağırlıklı)** var: Sprint 2'yi
 zorlaştırmak / projeyi production'a taşımak için seçilebilecek 8 derin görev.
 
@@ -21,7 +21,7 @@ zorlaştırmak / projeyi production'a taşımak için seçilebilecek 8 derin gö
 
 | Epic | Story (kullanıcı değeri) | Sprint |
 |---|---|---|
-| **A. Tahmin motoru** | Kullanıcının paneli için saatlik üretim ve hane tüketimi tahmin edilir | S1 (v0) → S2 (LightGBM v1) |
+| **A. Tahmin motoru** | Kullanıcının paneli için saatlik üretim ve hane tüketimi tahmin edilir | S1 (v0) → S2 (weather-aware v1) |
 | **B. Karar & optimizasyon** | Üç zamanlı/kademeli tarife + saatlik mahsuplaşmaya göre en ucuz saat hesaplanır | S1 |
 | **C. Agent katmanı** | Agent kendi kararıyla tool çağırır, itirazı hatırlar, sormadan uyarır | S1 (temel) → S2 (canlı LLM + semantik hafıza) |
 | **D. Mobil + web ürün** | Kullanıcı 4 adımda kurar; plan, asistan, rapor ekranlarını Türkçe kullanır | S1 → S3 (cila) |
@@ -105,7 +105,7 @@ için senaryo-tabanlı 6 eval testi (`test_agent.py`): doğru tool orkestrasyonu
 kısıt uyumu, tercih kalıcılığı, grounding ve canlı LLM grounding fallback'i. API'ye global hata yakalayıcı + istek
 loglama; Gemini tool argümanları defensive temizlenir (bilinmeyen arg atılır,
 `blocked_hours` 0–23'e clamp).
-**Kabul kriteri:** 20/20 test yeşil · uydurma rakam (999 TL) testte yakalanıyor · ruff temiz · beklenmeyen hatada stack sızmıyor.
+**Kabul kriteri:** 27/27 test yeşil · uydurma rakam (999 TL) testte yakalanıyor · ruff temiz · beklenmeyen hatada stack sızmıyor.
 **Kod:** `backend/app/agent/grounding.py` · `backend/tests/test_agent.py` · `backend/app/main.py` · `backend/app/agent/orchestrator.py`
 
 **Scrum kanıtları:** [daily](scrum/sprint-1/daily.md) · [board](scrum/sprint-1/board.md) · [review](scrum/sprint-1/review.md) · [retrospective](scrum/sprint-1/retrospective.md)
@@ -116,22 +116,24 @@ loglama; Gemini tool argümanları defensive temizlenir (bilinmeyen arg atılır
 
 **Sprint hedefi:** Baseline modelleri gerçek makine öğrenmesiyle değiştir; agent'ı
 canlı Gemini anahtarıyla sağlamlaştır. **Kontrat sabit — yalnız tool gövdeleri değişir.**
-**Hedef puan:** 34 SP.
+**Hedef puan:** 44 SP.
 **Puan tamamlama mantığı:** En yüksek jüri ağırlığı "AI/ML modeli" kaleminde; bu
-sprint puanın çoğu (16 SP) iki gerçek LightGBM modeline ayrıldı.
+sprint puanın çoğu (16 SP) iki gerçek v1 tahmin modeline ayrıldı.
 
-### S2-1 · LightGBM üretim modeli v1  `[VB · 8 SP]`
-**Kart açıklaması:** PVGIS + Open-Meteo geçmiş verisiyle saatlik PV üretimi tahmin
-eden LightGBM modelini eğit. `forecast_production` gövdesini değiştir, imzayı ve
-`ProductionForecast` şemasını KORU; `model_version`'ı `v1-lightgbm` yap.
-**Kabul kriteri:** son yıl hold-out'ta v0 fiziksel baseline'ı nMAE'de geçiyor · imza değişmedi · testler yeşil.
-**Kod:** `backend/app/tools/production.py` (gövde)
+### S2-1 · Weather-aware üretim modeli v1  `[VB · 8 SP · 🟡 branch]`
+**Kart açıklaması:** PVGIS/Open-Meteo saatlik verisiyle eğitilebilir, runtime'da
+Open-Meteo'nun anlık/gelecek kısa dalga ışınımı, sıcaklık ve bulut verisini kullanan
+üretim modeli. `forecast_production` gövdesi v1 model artifact'ini okur; model
+yoksa fiziksel fallback devreye girer. Eğitim scripti PVGIS CSV'den artifact üretir.
+**Kabul kriteri:** `model_version="v1-weather-regressor"` · güneşli/bulutlu gün farkı testli · imza değişmedi · testler yeşil.
+**Kod:** `backend/app/tools/production.py` · `backend/app/models/production_v1.json` · `data/scripts/train_production_model.py`
 
-### S2-2 · LightGBM tüketim modeli v1  `[VB · 8 SP]`
-**Kart açıklaması:** Hane/KOBİ saatlik talebini tahmin eden LightGBM modelini eğit;
-`forecast_consumption` gövdesini değiştir, şema sabit.
-**Kabul kriteri:** baseline profili geçiyor · fatura kalibrasyonu korunuyor · imza sabit.
-**Kod:** `backend/app/tools/consumption.py` (gövde)
+### S2-2 · Generic smart-meter tüketim modeli v1  `[VB · 8 SP · 🟡 branch]`
+**Kart açıklaması:** Hane/KOBİ saatlik talebini açık smart-meter verisinden çıkarılabilen
+24 saatlik yük şekli + kullanıcının aylık faturasıyla kalibre eden v1 model. Türkiye'ye
+özel sayaç verisi gerekmez; generic şekil kullanıcı faturasıyla ölçeklenir.
+**Kabul kriteri:** `model_version="v1-generic-load-shape"` · fatura kalibrasyonu korunuyor · hafta sonu/mevsim etkisi var · imza sabit.
+**Kod:** `backend/app/tools/consumption.py` · `backend/app/models/consumption_v1.json` · `data/scripts/train_consumption_model.py`
 
 ### S2-3 · EPİAŞ şekil doğrulama + kalibrasyon raporu  `[VB · 5 SP]`
 **Kart açıklaması:** Tüketim profili şeklini EPİAŞ bölgesel/toplam tüketim eğrisiyle
@@ -139,12 +141,13 @@ karşılaştır; korelasyonu ve kalibrasyon yöntemini METHOD.md §3'te raporla.
 **Kabul kriteri:** EPİAŞ ile şekil korelasyonu belgelendi · sapma noktaları not edildi.
 **Kod:** `docs/METHOD.md` · analiz notebook/script
 
-### S2-4 · Gemini canlı anahtar + prompt iyileştirme  `[YZ · 5 SP]`
-**Kart açıklaması:** Gerçek `GEMINI_API_KEY` ile uçtan uca agent testi; sistem
-promptu ve tool açıklamalarını gerçek çıktılarla iyileştir (Türkçe kısalık, gerekçe,
-tasarruf aralığı kuralları). Hata/timeout durumlarında fallback'e düşüşü doğrula.
-**Kabul kriteri:** canlı modda 5+ senaryo (plan, itiraz, tercih hatırlama) doğru · fallback düşüşü sorunsuz.
-**Kod:** `backend/app/agent/orchestrator.py`
+### S2-4 · Gemini/Ollama provider zinciri + prompt iyileştirme  `[YZ · 5 SP · 🟡 branch]`
+**Kart açıklaması:** Gerçek `GEMINI_API_KEY` ile uçtan uca agent testi; anahtar yoksa
+opsiyonel `OLLAMA_ENABLED=1` ile yerel Ollama tool-calling provider'ı çalıştır. Her
+LLM cevabı grounding guard'dan geçer; hata/timeout durumlarında deterministik fallback
+devreye girer. Sistem promptu ve tool açıklamaları gerçek çıktılarla iyileştirilir.
+**Kabul kriteri:** Gemini/Ollama/fallback provider sırası çalışıyor · local LLM testleri daemon gerektirmeden mock'lanıyor · grounding ihlalinde fallback.
+**Kod:** `backend/app/agent/orchestrator.py` · `backend/app/agent/local_llm.py` · `backend/app/config.py`
 
 ### S2-5 · Chroma semantik hafıza  `[YZ · 5 SP]`
 **Kart açıklaması:** SQLite hafızanın üstüne Chroma/FAISS ile semantik arama ekle
@@ -153,13 +156,36 @@ Tool imzaları değişmez, yalnız `memory.py` genişler.
 **Kabul kriteri:** semantik geri getirme çalışıyor · mevcut read/write_memory imzası bozulmadı · anahtarsız ortamda SQLite'a düşüyor.
 **Kod:** `backend/app/tools/memory.py`
 
-### S2-6 · Cihaz kataloğu + EV şarj ince ayarı  `[YZ · 3 SP]`
-**Kart açıklaması:** Cihaz referans tablosunu genişlet; EV şarjı gibi büyük esnek
-yükler için pencere/güç parametrelerini gerçekçileştir ve optimizasyonu test et.
-**Kabul kriteri:** EV senaryosu güneş penceresine doğru yerleşiyor · katalog ≥10 cihaz.
-**Kod:** `backend/app/data/devices.json` · `backend/app/tools/optimize.py`
+### S2-6 · Cihaz kataloğu + EV şarj senaryosu (güç-bilinçli, kesintili)  `[YZ · 3 SP · ✅]`
+**Kart açıklaması:** Cihaz kataloğu güç/süre/kategori/kaynak metadata'sıyla 12
+cihaza çıkarıldı. Optimizer artık `power_kw`'yi FİZİKSEL kısıt olarak kullanıyor:
+bir çalıştırma `kwh/power_kw` saatten hızlı bitemez (kullanıcı 22 kWh EV şarjına
+1 saat yazsa bile plan 3 saate yayılır). EV şarjı ve pompalar
+`flexibility="interruptible"` — şarj DURAKLAYABİLİR: saatler marjinal maliyete
+göre tek tek seçilir, bloke saatlerin etrafından dolaşır ve güneş penceresine
+yapışır; bölünmüş plan mobile "(1. bölüm) / (2. bölüm)" kartları olarak iner.
+Çamaşır/bulaşık gibi cihazlar kesintisiz blok kalır (davranış değişmedi).
+**Kabul kriteri:** EV bloke öğle saatinin etrafından dolaşıp güneş penceresinde kalıyor · üç zamanlıda EV asla 17-22 puanta girmiyor · `kwh>power_kw×süre` fizibilite düzeltmesi çalışıyor · katalog ≥10 cihaz ve tüm satırlar `Device` şemasını geçiyor · 5 yeni test.
+**Kod:** `backend/app/data/devices.json` · `backend/app/tools/optimize.py` · `backend/tests/test_core.py`
 
-**Sprint 2 demo kriteri:** "Çamaşırı 13:00'te at" önerisi v1 LightGBM üretim tahminiyle
+### S2-7 · Expo konum izni + konuma göre hava kontrolü  `[YZ · 5 SP · 🟡 branch]`
+**Kart açıklaması:** Onboarding'de kullanıcıdan konum izni iste; izin verilirse gerçek
+lat/lon ile Open-Meteo hava/ışınım kontrolü yap, tahmini günlük üretimi göster ve
+profili bu koordinatla kaydet. Plan endpoint'i bu konumun bugün/yarın hava tahminiyle
+optimizasyon üretir.
+**Kabul kriteri:** kullanıcı izin verirse gerçek koordinat kaydedilir · izin yoksa şehir seçimi çalışır · `/api/weather-check` üretim modeliyle hava özeti döner · mobile dependency uyumlu.
+**Kod:** `mobile/src/screens/Onboarding.js` · `mobile/src/api.js` · `mobile/app.json` · `backend/app/main.py`
+
+### S2-8 · Gerçek zamanlı optimizer + performans iyileştirme  `[YZ · 5 SP · 🟡 branch]`
+**Kart açıklaması:** Planı her çağrıda güncel hava/saat/kısıtlarla yeniden hesapla:
+Open-Meteo current koşullarını bugünün ilgili saatine işle, geçmiş saatleri cihaz ve
+batarya dispatch için otomatik blokla, cihaz yerleşimini greedy + coordinate descent
+ile iyileştir, model artifact okumalarını cache'le ve Türkiye/dinamik fiyat adapter
+mimarisini araştırma raporlarıyla belgele.
+**Kabul kriteri:** bugün geçmiş saate plan yok · batarya geçmiş saatte şarj/deşarj etmiyor · optimizer metadata'sı (`device_optimizer`, `cost_evaluations`) dönüyor · 27/27 test yeşil.
+**Kod:** `backend/app/tools/weather.py` · `backend/app/tools/optimize.py` · `backend/app/tools/tariff.py` · `docs/research/*`
+
+**Sprint 2 demo kriteri:** "Çamaşırı 13:00'te at" önerisi v1 weather-aware üretim tahminiyle
 üretiliyor; kullanıcı itirazıyla değişiyor; hafıza tercihi hatırlıyor.
 
 ---
@@ -245,7 +271,7 @@ seed verisi ve tek komutla ayağa kalkan showcase akışı hazırla.
 
 ### S3-2 · Canlıya alma (backend + APK)  `[Ortak · 5 SP]`
 **Kart açıklaması:** Backend'i Railway/Cloud Run'a Docker ile deploy et (env: GEMINI_API_KEY,
-VOLTAIC_CORS_ORIGINS, DB volume). EAS ile Android APK üret; `app.json` extra.apiUrl'ı
+WATTRA_CORS_ORIGINS, DB volume). EAS ile Android APK üret; `app.json` extra.apiUrl'ı
 canlı URL'e bağla.
 **Kabul kriteri:** canlı `/api/health` erişilebilir · APK kuruluyor ve canlı backend'e bağlanıyor.
 **Kod:** `mobile/app.json` · deploy ayarları

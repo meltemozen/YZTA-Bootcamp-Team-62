@@ -7,8 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-# Database kept persistent via a volume: -v voltaic-data:/data
-ENV VOLTAIC_DB=/data/voltaic.db
+# Database kept persistent via a volume: -v wattra-data:/data
+ENV WATTRA_DB=/data/wattra.db
 RUN mkdir -p /data
 
 EXPOSE 8000

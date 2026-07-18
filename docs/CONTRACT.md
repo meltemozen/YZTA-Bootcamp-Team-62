@@ -11,6 +11,15 @@
 > **v1.2 (3 Temmuz 2026):** Kod tabanı İngilizce'ye taşındı (dosya/metot/alan
 > adları). Tool imzaları ve JSON alanları İngilizce; anlam ve şekil AYNI.
 > Kullanıcıya görünen mobil metinler Türkçe kaldı.
+> **v1.3 (9 Temmuz 2026, S2-5):** Yeni EKLEME tool: `search_preferences(user_id,
+> query, top_k=5)` — Chroma + Gemini embedding ile anlamca benzer tercihleri
+> getirir; katman yoksa SQLite kelime eşleşmesine düşer. `read_memory` /
+> `write_memory` imzaları DEĞİŞMEDİ; mevcut şemalara dokunulmadı. Geriye uyumlu.
+> **v1.4 (9 Temmuz 2026, S2-6):** Davranış eki, şema DEĞİŞMEDİ: `optimize`
+> artık `Device.power_kw`'yi fiziksel kısıt sayar (efektif süre ≥ kwh/power_kw)
+> ve `Device.flexibility="interruptible"` cihazları (EV şarjı, pompa) kesintili
+> yerleştirebilir. Bölünmüş yerleşim, mevcut `PlanItem` şemasıyla **bitişik
+> segment başına bir kalem** olarak döner (ad soneki "(N. bölüm)"). Geriye uyumlu.
 
 ## Tool listesi
 
@@ -24,7 +33,8 @@ Agent bu tool'ları **kendi kararıyla, kendi sırasıyla** çağırır — elle
 | `forecast_consumption(profile, date)` | profil + gün | saatlik kWh baz talep (`ConsumptionForecast`) | **VB** | ✅ v0-profile — VB, v1 ile değiştirir |
 | `get_tariff(date, user_type, tariff_type, monthly_kwh)` | gün, kullanıcı/tarife tipi | saatlik fiyat + **mahsup satış fiyatı** (`Tariff`) | YZ | ✅ EPDK sabit tablo |
 | `optimize(production, consumption, tariff, profile, blocked_hours)` | hepsi | cihaz/batarya planı (`DailyPlan`) | DS+YZ | ✅ deterministik motor |
-| `read_memory(user_id)` / `write_memory(user_id, text)` | kullanıcı id | tercih + geçmiş | YZ | ✅ SQLite (Chroma genişletilebilir) |
+| `read_memory(user_id)` / `write_memory(user_id, text)` | kullanıcı id | tercih + geçmiş | YZ | ✅ SQLite (+ Chroma'ya çift yazım) |
+| `search_preferences(user_id, query, top_k)` | kullanıcı id + serbest metin | anlamca benzer tercihler (`text/source/date/similarity`) | YZ | ✅ Chroma + Gemini embedding; katman yoksa kelime eşleşmesi |
 
 ## Enum değerleri (İngilizce, v1.2)
 
