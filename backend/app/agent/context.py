@@ -134,7 +134,7 @@ class ToolContext:
         return read_memory(self.user_id)
 
     def search_preferences(self, query: str) -> list[dict]:
-        self.calls.append(f"search_preferences({query[:40]})")
+        self._calls.append(f"search_preferences({query[:40]})")
         return search_preferences(self.user_id, query)
 
     def write_memory(self, text: str) -> dict:
