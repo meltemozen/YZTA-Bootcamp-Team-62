@@ -62,7 +62,7 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 # Sprintler
 
-<details open>
+<details>
 <summary><h2>Sprint 1 (19 Haziran – 5 Temmuz) · 48 SP</h2></summary>
 
 **Sprint Notları:** Bu sprint'te hem projenin temeli atıldı hem de tüm ekibin uyumlu çalışabilmesi için gerekli düzenlemeler yapıldı. Takım rolleri belirlendi. Projede yapılacak tasklar belirlendi ve product backlog olarak boarda eklendi. Repo, GitHub & proje altyapısı düzenlendi. Model-agent kontratı oluşturuldu ve tüm ekibin uyumlu çalışabilmesi için gerekli düzenlemeler yapıldı.
@@ -116,7 +116,7 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 </details>
 
-<details>
+<details open>
 <summary><h2>Sprint 2 (6 – 19 Temmuz) · 34 SP</h2></summary>
 
 **Sprint Notları:** Bu sprint'te tahmin motoru v1 model artifact'leriyle güçlendirildi: üretim modeli LightGBM, tüketim modeli CatBoost olarak yeniden eğitilip v0 ile karşılaştırmalı raporlandı ve tüketim modeli EPİAŞ verisiyle kalibre edildi. Chroma tabanlı semantik hafıza (`search_preferences`) eklendi, cihaz kataloğu ve EV şarj senaryosu güç-bilinçli planlamaya entegre edildi. Gemini agent uçtan uca test edilip prompt'lar optimize edildi.
@@ -125,9 +125,10 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 **Tahmin Mantığı:** Sprint 1'de atılan temel üzerine, Sprint 2'de modellerin v1 sürümlerinin çıkarılması, karşılaştırmalı raporlanması ve agent'ın gerçek veriyle (EPİAŞ, hafıza, cihaz kataloğu) sağlamlaştırılması hedeflenmiştir. Toplam 103 puanın 34'ü bu sprint'e ayrılmış ve tamamı tamamlanmıştır.
 
-**Daily Scrum:** Whatsapp üzerinden toplantı saatleri kararlaştırılıp Meet veya Slack üzerinden toplantılar gerçekleştirilmiştir. Bu kısa toplantılarla ekip üyeleri tamamladıkları işleri, yapacakları task'ları ve karşılaştıkları engelleri paylaşarak ilerleme kaydedilmiştir.
+**Daily Scrum:** Whatsapp üzerinden iletişime geçilerek Slack huddle'ları üzerinden günlük toplantılar gerçekleştirildi. 
 
-![Sprint 2 Huddle](docs/gorseller/sprint2_huddle.jpeg)
+![Sprint 2 Huddle](docs/gorseller/sprint2_huddle.png)
+![Sprint 2 Huddle](docs/gorseller/sprint2_huddle2.png)
 
 **Scrum Board Ekran Görüntüsü**
 
@@ -137,13 +138,38 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 ![Sprint 2 Burndown Chart](docs/gorseller/sprint2_burndownChart.png)
 
+**Ürün Ekran Görüntüleri**
+
+| Asistan | Rapor | Bugün | Yarın | Ayarlar |
+|---|---|---|---|---|
+| ![Asistan](docs/gorseller/sprint2_demo1.png) | ![Rapor](docs/gorseller/sprint2_demo2.png) | ![Bugün](docs/gorseller/sprint2_demo3.png) | ![Yarın](docs/gorseller/sprint2_demo4.png) | ![Ayarlar](docs/gorseller/sprint2_demo5.png) |
+
+**Model Performans Değerlendirmeleri**
+
+Sprint 2 kapsamında, projenin tahmin motorunu güçlendirmek için veri bilimi ekibi tarafından v1 modelleri eğitilmiş ve v0 (baseline) modelleriyle karşılaştırılmıştır. Üretim tarafında LightGBM, tüketim tarafında ise CatBoost modelleri en düşük hata oranlarını vererek projeye entegre edilmiştir. Detaylı araştırma raporlarına `docs/research/` klasöründen ulaşılabilir.
+
+_Üretim Modeli (v0 → v1):_
+| Model | MAE | RMSE | nMAE % |
+|---|---|---|---|
+| **LightGBM (v1 seçilen)** | 0.00335 | 0.00771 | **2.08** |
+| XGBoost | 0.00337 | 0.00775 | 2.09 |
+| RandomForest | 0.00343 | 0.00801 | 2.13 |
+| v0-physical (baseline) | 0.00882 | 0.01605 | 5.47 |
+
+_Tüketim Modeli (v0 → v1):_
+| Model | MAE | RMSE |
+|---|---|---|
+| **CatBoost (v1 seçilen)** | **0.2125** | **0.2641** |
+| LightGBM | 0.2247 | 0.2744 |
+| Prophet | 0.3688 | 0.4162 |
+
 **Sprint Review:** Üretim modeli LightGBM v1 ve tüketim modeli CatBoost v1, v0 ile karşılaştırmalı şekilde eğitilip raporlandı; tüketim modeli EPİAŞ şekil doğrulamasıyla kalibre edildi. Chroma + Gemini embeddings ile semantik hafıza (`search_preferences`) eklendi. Cihaz kataloğu ve EV şarj senaryosu güç-bilinçli planlamaya dahil edildi. Gemini agent uçtan uca test edilerek prompt'lar iyileştirildi.
 
 **Sprint Retrospective:** Model karşılaştırma ve kalibrasyon işlerinin planlanandan daha fazla zaman aldığı görüldü; Sprint 3'te canlıya alma ve teslim hazırlıklarına daha erken başlanmasına karar verildi.
 
 | # | Görev | Ekip | SP | Durum |
 |---|---|---|---|---|
-| S2-1 | Chroma DB ile Semantik Hafıza (Memory) Genişletmesi ([PR #4](https://github.com/meltemozen/YZTA-Bootcamp-Team-62/pull/4)) | YZ | 5 | ✅ |
+| S2-1 | Chroma DB ile Semantik Hafıza (Memory) Genişletmesi | YZ | 5 | ✅ |
 | S2-2 | Cihaz Kataloğu Güncellemesi ve EV Şarj Senaryosu | YZ | 3 | ✅ |
 | S2-3 | Tüketim Model Karşılaştırması ve Raporlanması | VB | 4 | ✅ |
 | S2-4 | Üretim Model Karşılaştırması ve Raporlanması | VB | 4 | ✅ |
@@ -151,16 +177,6 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 | S2-6 | Tüketim Modeli (v1) Geliştirimi | VB | 4 | ✅ |
 | S2-7 | Üretim Modeli (v1) Geliştirimi | VB | 4 | ✅ |
 | S2-8 | EPİAŞ Doğrulama ve Tüketim Kalibrasyon Raporu | VB | 5 | ✅ |
-
-**Notlar**
-
-- Çalışma branch'i: `ml/s2-weather-local-llm`.
-- Model yaklaşımı LightGBM'e kilitlenmedi. Öncelik doğru runtime girdileri:
-  konum, bugün/yarın hava tahmini, ışınım, sıcaklık, bulut ve fatura kalibrasyonu.
-- Üretim modeli PVGIS CSV ile yeniden eğitilebilir. Tüketim modeli açık smart-meter
-  CSV'lerinden saatlik şekil çıkarıp kullanıcının faturasıyla ölçekler.
-- Plan her çağrıda yeniden optimize edilir; bugünün geçmiş saatleri cihaz ve batarya
-  dispatch için otomatik bloklanır.
 
 </details>
 
