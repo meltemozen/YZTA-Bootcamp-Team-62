@@ -201,7 +201,7 @@ def auth_update_me(req: ProfileUpdateRequest,
     info = db.get_user_auth_info(uid)
     if not info:
         raise HTTPException(404, "Kullanıcı bulunamadı")
-    
+
     if req.email is not None:
         email = req.email.lower().strip()
         if not email:
@@ -211,7 +211,7 @@ def auth_update_me(req: ProfileUpdateRequest,
         if existing and existing["id"] != uid:
             raise HTTPException(409, "Bu e-posta adresi zaten kullanılıyor")
         db.update_user_email(uid, email)
-        
+
     if req.name is not None:
         db.update_user_name(uid, req.name)
     if req.profile is not None:
