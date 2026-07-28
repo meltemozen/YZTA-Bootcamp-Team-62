@@ -16,4 +16,4 @@ tzdata>=2024.1
 lightgbm>=4.0,<5.0
 # Authentication: JWT tokens + bcrypt password hashing
 PyJWT>=2.8,<3.0
-passlib[bcrypt]>=1.7,<2.0
+bcrypt>=4.0,<5.0

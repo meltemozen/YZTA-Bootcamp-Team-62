@@ -11,9 +11,9 @@ Tokens
 
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 import jwt
 from fastapi import HTTPException, Request
-from passlib.context import CryptContext
 
 from . import config
 
@@ -21,17 +21,20 @@ from . import config
 # Password hashing (bcrypt)
 # ---------------------------------------------------------------------------
 
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(plain: str) -> str:
     """Return a bcrypt hash of *plain*."""
-    return _pwd_ctx.hash(plain)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(plain.encode("utf-8"), salt).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Check *plain* against a stored bcrypt *hashed* value."""
-    return _pwd_ctx.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 # ---------------------------------------------------------------------------
