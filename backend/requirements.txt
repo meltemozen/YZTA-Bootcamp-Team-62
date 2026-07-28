@@ -14,3 +14,6 @@ tzdata>=2024.1
 # pure-Python linear/physical model automatically. Pin it here anyway since
 # it's the intended default artifact (backend/app/models/production_v1.json).
 lightgbm>=4.0,<5.0
+# Authentication: JWT tokens + bcrypt password hashing
+PyJWT>=2.8,<3.0
+passlib[bcrypt]>=1.7,<2.0
