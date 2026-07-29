@@ -5,13 +5,18 @@ number": production/consumption model_version was already surfaced end-to-end,
 but trained_at (when the artifact was built) and an optimizer version tag were
 missing entirely, and models/manifest.json's documented consumption version
 had drifted from what's actually deployed. See docs/SPRINTS.md TDB-4.
+
+Also covers the model artifact registry built on top of that (ModelManifestEntry
+/ model_manifest.load_manifest()): metrics/data provenance for all three
+components, with unknown values genuinely None rather than a fabricated number.
 """
 
 import json
 import os
 from datetime import date, timedelta
 
-from app.schemas import Device, HouseholdProfile, Weather
+from app.model_manifest import load_manifest
+from app.schemas import Device, HouseholdProfile, ModelManifestEntry, Weather
 from app.tools import consumption, production
 from app.tools.optimize import optimize
 from app.tools.tariff import get_tariff
@@ -92,8 +97,46 @@ def test_manifest_matches_actual_model_artifacts():
     with open(os.path.join(_MODELS_DIR, "consumption_v1.json"), encoding="utf-8") as f:
         consumption_artifact = json.load(f)
 
-    assert manifest["production"]["active_version"] == production_artifact["model_version"]
+    assert manifest["production"]["version"] == production_artifact["model_version"]
     assert manifest["production"]["trained_at"] == production_artifact["trained_at"]
-    assert manifest["consumption"]["active_version"] == consumption_artifact["model_version"]
+    assert manifest["consumption"]["version"] == consumption_artifact["model_version"]
     assert manifest["consumption"]["trained_at"] == consumption_artifact["trained_at"]
     assert "optimizer" in manifest
+
+
+# --- Model artifact registry (ModelManifestEntry / load_manifest()) ---
+
+def test_load_manifest_returns_validated_entries():
+    manifest = load_manifest()
+
+    assert set(manifest) == {"production", "consumption", "optimizer"}
+    for entry in manifest.values():
+        assert isinstance(entry, ModelManifestEntry)
+
+
+def test_production_and_consumption_manifest_entries_have_real_metrics():
+    manifest = load_manifest()
+
+    assert manifest["production"].metrics.mae is not None
+    assert manifest["production"].metrics.rmse is not None
+    assert manifest["consumption"].metrics.mae is not None
+    assert manifest["consumption"].metrics.rmse is not None
+
+
+def test_optimizer_manifest_entry_has_no_fabricated_metrics():
+    """The optimizer is a deterministic algorithm, not a trained model — every
+    metric/training field must be honestly None, never a placeholder number."""
+    entry = load_manifest()["optimizer"]
+
+    assert entry.trained_at is None
+    assert entry.data_source is None
+    assert entry.metrics.mae is None
+    assert entry.metrics.rmse is None
+    assert entry.metrics.nmae_pct is None
+
+
+def test_load_manifest_degrades_to_empty_dict_when_file_missing(monkeypatch):
+    import app.model_manifest as model_manifest
+
+    monkeypatch.setattr(model_manifest, "_MANIFEST_PATH", "/nonexistent/manifest.json")
+    assert model_manifest.load_manifest.__wrapped__() == {}

@@ -39,7 +39,11 @@ def _register() -> int:
 def test_health():
     resp = client.get("/api/health")
     assert resp.status_code == 200
-    assert resp.json()["agent"] == "fallback"
+    body = resp.json()
+    assert body["agent"] == "fallback"
+    assert set(body["models"]) == {"production", "consumption", "optimizer"}
+    assert body["models"]["production"]["version"] == "v1-lightgbm"
+    assert body["models"]["optimizer"]["metrics"]["mae"] is None
 
 
 def test_weather_check_uses_location_and_model():

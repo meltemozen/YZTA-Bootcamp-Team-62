@@ -201,3 +201,29 @@ class WeatherCheck(BaseModel):
         description="Whether the underlying weather is a fresh Open-Meteo call, a cached "
                     "fallback, or a synthetic seasonal estimate — surfaced so the UI can "
                     "disclose degraded data quality instead of presenting it as live")
+
+
+# --------------------------------------------------------------------------
+# Model artifact registry (docs/SPRINTS.md TDB-4) — surfaced via /api/health.
+# Not part of the locked agent tool contract above; a diagnostics/transparency
+# structure read from backend/app/models/manifest.json by model_manifest.py.
+# --------------------------------------------------------------------------
+
+class ModelMetrics(BaseModel):
+    """All fields are None when not genuinely known — never a fabricated
+    placeholder. See ModelManifestEntry.note for what a given number actually
+    measures (e.g. a model-selection hold-out run vs. the deployed artifact)."""
+    mae: float | None = None
+    rmse: float | None = None
+    nmae_pct: float | None = Field(default=None, description="Normalized MAE %, production-model only")
+
+
+class ModelManifestEntry(BaseModel):
+    model_name: str = Field(description="Human-readable name, e.g. 'PV Production Forecast'")
+    version: str = Field(description="Matches the artifact's own model_version/algorithm tag")
+    trained_at: str | None = Field(default=None, description="YYYY-MM-DD; None if not a trained artifact")
+    artifact: str | None = Field(default=None, description="Where the artifact file(s) live")
+    data_source: str | None = None
+    data_range: str | None = None
+    metrics: ModelMetrics = Field(default_factory=ModelMetrics)
+    note: str | None = None

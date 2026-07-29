@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 from . import config, db
 from .agent import assistant_reply
 from .agent.context import ToolContext
+from .model_manifest import load_manifest
 from .schemas import (
     AssistantRequest,
     AssistantResponse,
@@ -86,7 +87,8 @@ db.init_db()
 @app.get("/api/health")
 def health():
     agent = "gemini" if config.GEMINI_API_KEY else "ollama" if config.OLLAMA_ENABLED else "fallback"
-    return {"status": "ok", "version": APP_VERSION, "agent": agent}
+    models = {name: entry.model_dump() for name, entry in load_manifest().items()}
+    return {"status": "ok", "version": APP_VERSION, "agent": agent, "models": models}
 
 
 @app.get("/api/weather-check", response_model=WeatherCheck)
