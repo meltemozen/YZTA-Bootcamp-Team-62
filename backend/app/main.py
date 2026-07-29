@@ -115,6 +115,7 @@ def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "tod
         max_temp_c=round(max(weather.temp_c), 1),
         production_model_version=production.model_version,
         estimated_production_kwh=production.total_kwh,
+        weather_source=weather.source,
     )
 
 

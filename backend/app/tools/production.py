@@ -162,6 +162,7 @@ def forecast_production(weather: Weather, panel_kw: float) -> ProductionForecast
         hourly_kwh=hourly,
         total_kwh=round(sum(hourly), 2),
         model_version=model_version,
+        weather_source=weather.source,
     )
 
 

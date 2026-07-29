@@ -331,6 +331,7 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
                 "production": production.model_version,
                 "consumption": consumption.model_version,
             },
+            "weather_source": production.weather_source,
             "optimization": {
                 "blocked_hours": sorted(blocked),
                 "current_hour": current_hour if current_hour is not None

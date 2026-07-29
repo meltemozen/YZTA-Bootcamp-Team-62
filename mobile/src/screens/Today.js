@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View,
 } from 'react-native';
-import { api, rangeTL } from '../api';
+import { api, rangeTL, WEATHER_SOURCE_NOTE } from '../api';
 import DailyChart from '../components/DailyChart';
 import { SunIcon, LeafIcon } from '../components/Icons';
 import { ScreenHeader } from '../components/Brand';
@@ -125,6 +125,13 @@ export default function Today({ userId }) {
                 fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.55)', marginTop: 5,
               }}>
                 Model: {plan.chart_data.models.production} · {plan.chart_data.models.consumption}
+              </Text>
+            )}
+            {WEATHER_SOURCE_NOTE[plan.chart_data.weather_source] && (
+              <Text style={{
+                fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.75)', marginTop: 3,
+              }}>
+                {WEATHER_SOURCE_NOTE[plan.chart_data.weather_source]}
               </Text>
             )}
           </LinearGradient>

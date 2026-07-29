@@ -70,6 +70,9 @@ class ProductionForecast(BaseModel):
     hourly_kwh: list[float] = Field(description="24 elements")
     total_kwh: float
     model_version: str = Field(description="'v0-physical' | 'v1-lightgbm' — DS team swaps in v1")
+    weather_source: Literal["live", "cached", "synthetic"] = Field(
+        default="live", description="Passthrough of the Weather.source this forecast was built "
+                                    "from, so downstream consumers (plan, UI) can disclose it")
 
 
 class ConsumptionForecast(BaseModel):
@@ -182,3 +185,7 @@ class WeatherCheck(BaseModel):
     max_temp_c: float
     production_model_version: str
     estimated_production_kwh: float
+    weather_source: Literal["live", "cached", "synthetic"] = Field(
+        description="Whether the underlying weather is a fresh Open-Meteo call, a cached "
+                    "fallback, or a synthetic seasonal estimate — surfaced so the UI can "
+                    "disclose degraded data quality instead of presenting it as live")
