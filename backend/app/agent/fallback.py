@@ -26,6 +26,14 @@ _PREFERENCE_HINTS = ("evde yokum", "evde olmuyorum", "misafir", "istemiyorum",
                      "olmaz", "uyuyor", "gürültü", "gurultu", "sonra", "önce", "once",
                      "dışarıda", "disarida", "yokum", "tatil", "şehir dışı", "sehir disi")
 
+# Same data-quality disclosure the Gemini system prompt requires (orchestrator.py
+# "VERİ KALİTESİ ŞEFFAFLIĞI"), applied here since the rule-based fallback has no
+# LLM to follow that prompt.
+_DATA_QUALITY_TEXT = {
+    "cached": "Şu an canlı hava verisine ulaşamadım, en son bilinen veriyi kullanıyorum.",
+    "synthetic": "Şu an güncel hava verisine ulaşamadım, geçmiş desene göre tahmin ediyorum.",
+}
+
 
 def is_preference(message: str) -> bool:
     """Heuristic: does the message state a habit/constraint/objection? Shared
@@ -72,15 +80,17 @@ def reply(context: ToolContext, message: str) -> str:
     for pref in context.read_memory():
         blocked += _blocked_hours(pref["text"])
 
-    context.get_weather(day)
+    weather = context.get_weather(day)
     context.forecast_production(day)
     context.forecast_consumption(day)
     context.get_tariff(day)
     summary = context.optimize(day, sorted(set(blocked)) or None)
+    data_quality_note = _DATA_QUALITY_TEXT.get(weather.get("source"), "")
 
     if not summary["items"]:
-        return ("Bugün için kaydıracak esnek cihaz bulamadım. Ayarlardan çamaşır makinesi, "
-                "bulaşık makinesi gibi cihazlarını ekleyebilirsin.")
+        no_device_msg = ("Bugün için kaydıracak esnek cihaz bulamadım. Ayarlardan çamaşır makinesi, "
+                         "bulaşık makinesi gibi cihazlarını ekleyebilirsin.")
+        return f"{no_device_msg} {data_quality_note}".strip()
 
     lines = []
     for i in summary["items"]:
@@ -103,4 +113,6 @@ def reply(context: ToolContext, message: str) -> str:
         header += " Tercihlerini dikkate aldım (bazı saatler hariç tutuldu)."
     if similar_pref:
         header += f" Benzer bir tercihini zaten biliyordum: \"{similar_pref['text']}\"."
+    if data_quality_note:
+        header += f" {data_quality_note}"
     return header + "\n\n" + "\n".join(f"• {s}" for s in lines)
