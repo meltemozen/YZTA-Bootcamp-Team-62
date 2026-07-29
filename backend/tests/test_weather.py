@@ -13,7 +13,8 @@ from datetime import date
 import httpx
 import pytest
 
-from app.tools import production, weather as weather_module
+from app.tools import production
+from app.tools import weather as weather_module
 
 LAT, LON = 38.42, 27.14
 DAY = date(2026, 7, 30)
