@@ -173,8 +173,10 @@ class MonthlyReport(BaseModel):
     month: str
     applied_count: int
     total_count: int
-    realized_saving_tl_min: float
-    realized_saving_tl_max: float
+    realized_saving_tl_min: float = Field(
+        description="Simulated saving for applied suggestions — NOT a meter reading")
+    realized_saving_tl_max: float = Field(
+        description="Simulated saving for applied suggestions — NOT a meter reading")
     missed_saving_tl: float = Field(description="Counterfactual: value of unapplied suggestions")
     co2_saved_kg: float
     # Environmental/social impact equivalents (SDG 7 & 13 narrative)
