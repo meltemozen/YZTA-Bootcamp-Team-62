@@ -57,8 +57,10 @@ def _synthetic(day: date) -> dict:
     irradiance = [max(0.0, peak * math.sin(math.pi * (h - 5.5) / 13)) if 6 <= h <= 19 else 0.0
                   for h in range(24)]
     temp = [12 + 12 * max(season, 0) + 6 * math.sin(math.pi * (h - 9) / 12) for h in range(24)]
+    # "detail" describes how this dict was produced (for cache debugging only);
+    # it is NOT the Weather.source value returned by get_weather() below.
     return {"irradiance": irradiance, "temp": temp, "cloud": [20.0] * 24,
-            "source": "synthetic"}
+            "detail": "synthetic"}
 
 
 def _current_hour() -> int:
@@ -83,12 +85,16 @@ def _apply_current_conditions(day: date, data: dict, current: dict | None) -> di
     data["current_irradiance"] = current.get("shortwave_radiation")
     data["current_temp"] = current.get("temperature_2m")
     data["current_cloud"] = current.get("cloud_cover")
-    data["source"] = "forecast+current"
+    data["detail"] = "forecast+current"
     return data
 
 
 def get_weather(lat: float, lon: float, day: date) -> Weather:
     key = f"{lat:.2f},{lon:.2f},{day.isoformat()}"
+    # `source` is the Weather.source contract value (live/cached/synthetic) the
+    # rest of the product relies on for data-quality disclosure; it is set once
+    # below and never touched by the "detail" key inside `data` (that one is
+    # cache-debugging metadata only).
     source = "live"
     try:
         resp = httpx.get(_URL, params={
@@ -107,7 +113,7 @@ def get_weather(lat: float, lon: float, day: date) -> Weather:
             "irradiance": hourly["shortwave_radiation"][:24],
             "temp": hourly["temperature_2m"][:24],
             "cloud": hourly["cloud_cover"][:24],
-            "source": "forecast",
+            "detail": "forecast",
         }
         data = _apply_current_conditions(day, data, body.get("current"))
         _write_cache(key, data)
