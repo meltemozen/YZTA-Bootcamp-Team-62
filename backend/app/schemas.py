@@ -70,6 +70,9 @@ class ProductionForecast(BaseModel):
     hourly_kwh: list[float] = Field(description="24 elements")
     total_kwh: float
     model_version: str = Field(description="'v0-physical' | 'v1-lightgbm' — DS team swaps in v1")
+    trained_at: str | None = Field(
+        default=None, description="Training/deploy date (YYYY-MM-DD) of this model_version's "
+                                  "artifact; None for the hardcoded v0-physical fallback")
     weather_source: Literal["live", "cached", "synthetic"] = Field(
         default="live", description="Passthrough of the Weather.source this forecast was built "
                                     "from, so downstream consumers (plan, UI) can disclose it")
@@ -81,6 +84,9 @@ class ConsumptionForecast(BaseModel):
     hourly_kwh: list[float]
     total_kwh: float
     model_version: str = "v0-profile"
+    trained_at: str | None = Field(
+        default=None, description="Training/deploy date (YYYY-MM-DD) of this model_version's "
+                                  "artifact; None for the hardcoded v0-profile fallback")
 
 
 class Tariff(BaseModel):
@@ -117,6 +123,10 @@ class DailyPlan(BaseModel):
     total_saving_tl_max: float
     co2_saved_kg: float
     self_consumption_ratio: float = Field(description="Share of production consumed at home 0-1")
+    optimizer_version: str = Field(
+        default="v1-greedy-coordinate-descent",
+        description="Version tag for the deterministic optimize() algorithm — no trained "
+                    "artifact backs this, bumped manually when the algorithm changes")
     chart_data: dict = Field(default_factory=dict, description="For charts: production/consumption/price arrays")
 
 

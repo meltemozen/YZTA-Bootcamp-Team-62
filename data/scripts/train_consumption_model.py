@@ -92,6 +92,7 @@ def train_and_extract_shape():
     
     model_data = {
         "model_version": "v2-catboost-calibrated",
+        "trained_at": datetime.now().strftime("%Y-%m-%d"),
         "home_shape": home_shape,
         "business_shape": DEFAULT_BUSINESS,
         "seasonality": {

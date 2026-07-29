@@ -36,6 +36,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import date
 
 import lightgbm as lgb
 
@@ -82,6 +83,7 @@ def main() -> None:
     meta_path = os.path.join(args.out_dir, "production_v1.json")
     metadata = {
         "model_version": "v1-lightgbm",
+        "trained_at": date.today().isoformat(),
         "model_type": "lightgbm",
         "model_file": "production_v1_lgbm.txt",
         "trained_on": f"{args.pvgis} + {args.openmeteo}, full history (no holdout — see "

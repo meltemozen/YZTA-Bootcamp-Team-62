@@ -13,6 +13,12 @@ import { ScreenHeader } from '../components/Brand';
 import PlanCard from '../components/PlanCard';
 import { spacing, font, card, colors, text } from '../theme';
 
+// "v1-lightgbm (2026-07-15)" — omits the date when a model has none (the
+// hardcoded v0 physical/profile fallback has no training date).
+function formatModel(version, trainedAt) {
+  return trainedAt ? `${version} (${trainedAt})` : version;
+}
+
 function DaySelector({ day, setDay }) {
   return (
     <View style={{
@@ -124,7 +130,9 @@ export default function Today({ userId }) {
               <Text style={{
                 fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.55)', marginTop: 5,
               }}>
-                Model: {plan.chart_data.models.production} · {plan.chart_data.models.consumption}
+                Model: {formatModel(plan.chart_data.models.production, plan.chart_data.models.production_trained_at)}
+                {' · '}
+                {formatModel(plan.chart_data.models.consumption, plan.chart_data.models.consumption_trained_at)}
               </Text>
             )}
             {WEATHER_SOURCE_NOTE[plan.chart_data.weather_source] && (
