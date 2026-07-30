@@ -5,13 +5,14 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, Text, TextInput, View,
 } from 'react-native';
 import { api } from '../api';
 import { alertUser } from '../notify';
 import { LogoMark, Wordmark } from '../components/Brand';
+import { ErrorState, LoadingState, TOUCH } from '../components/States';
 import {
   primaryButton, primaryButtonText, spacing, font, card, colors, text,
 } from '../theme';
@@ -35,9 +36,14 @@ function Option({ label, selected, onPress, small }) {
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
       style={{
-        paddingVertical: small ? 9 : 14,
+        paddingVertical: small ? 12 : 14,
         paddingHorizontal: 15,
+        minHeight: TOUCH,
+        justifyContent: 'center',
         borderRadius: 12,
         borderWidth: 1.5,
         borderColor: selected ? colors.amber : colors.border,
@@ -57,7 +63,8 @@ function Option({ label, selected, onPress, small }) {
   );
 }
 
-function NumberInput({ label, value, setValue, unit }) {
+function NumberInput({ label, value, setValue, unit, error, warning }) {
+  const borderColor = error ? colors.critical : colors.border;
   return (
     <View style={{ marginBottom: spacing.m }}>
       <Text style={[text.body, { marginBottom: 6 }]}>{label}</Text>
@@ -66,17 +73,70 @@ function NumberInput({ label, value, setValue, unit }) {
           value={value}
           onChangeText={setValue}
           keyboardType="numeric"
+          accessibilityLabel={label}
+          accessibilityHint={unit}
           style={{
-            borderWidth: 1, borderColor: colors.border, borderRadius: 12,
-            padding: 13, fontSize: 17, width: 120,
+            borderWidth: 1, borderColor, borderRadius: 12,
+            padding: 13, fontSize: 17, width: 120, minHeight: TOUCH,
             backgroundColor: colors.input, color: colors.ink,
             fontFamily: font.number,
           }}
         />
         <Text style={[text.body, { marginLeft: spacing.s }]}>{unit}</Text>
       </View>
+      {error ? (
+        <Text style={[text.small, { color: colors.critical, marginTop: 5 }]}
+              accessibilityRole="alert">
+          {error}
+        </Text>
+      ) : null}
+      {!error && warning ? (
+        <Text style={[text.small, { color: colors.amber, marginTop: 5 }]}>{warning}</Text>
+      ) : null}
     </View>
   );
+}
+
+// Validation lives here rather than inline so the "can I continue?" check and
+// the message under the field can never disagree. Ranges are physical/legal:
+// residential rooftop net-metering is capped at 10 kW (config.py), and a
+// household bill outside 30-5000 kWh/month is almost certainly a typo.
+function validate({ panelKw, batteryKwh, bill, userType }) {
+  const errors = {};
+  const warnings = {};
+
+  const panel = parseFloat(panelKw.replace(',', '.'));
+  if (!panelKw.trim() || Number.isNaN(panel)) {
+    errors.panelKw = 'Panel gücünü yaz.';
+  } else if (panel <= 0) {
+    errors.panelKw = 'Panel gücü sıfırdan büyük olmalı.';
+  } else if (panel > 100) {
+    errors.panelKw = 'Bu değer çok yüksek görünüyor — kW cinsinden yazdığından emin ol.';
+  } else if (userType === 'home' && panel > 10) {
+    warnings.panelKw = 'Meskende mahsuplaşma sınırı 10 kW; üstü için ticari abonelik gerekir.';
+  }
+
+  const battery = parseFloat(batteryKwh.replace(',', '.'));
+  if (!batteryKwh.trim() || Number.isNaN(battery)) {
+    errors.batteryKwh = 'Bataryan yoksa 0 yaz.';
+  } else if (battery < 0) {
+    errors.batteryKwh = 'Negatif kapasite olamaz.';
+  } else if (battery > 200) {
+    errors.batteryKwh = 'Bu kapasite çok yüksek görünüyor — kWh cinsinden yazdığından emin ol.';
+  }
+
+  const monthly = parseFloat(bill.replace(',', '.'));
+  if (!bill.trim() || Number.isNaN(monthly)) {
+    errors.bill = 'Aylık tüketimini yaz (faturada "kWh" satırı).';
+  } else if (monthly <= 0) {
+    errors.bill = 'Tüketim sıfırdan büyük olmalı.';
+  } else if (monthly < 30) {
+    warnings.bill = 'Bu çok düşük — faturadaki TL tutarını değil, kWh değerini yaz.';
+  } else if (monthly > 5000) {
+    warnings.bill = 'Bu çok yüksek — aylık kWh yerine yıllık değeri yazmış olabilir misin?';
+  }
+
+  return { errors, warnings };
 }
 
 export default function Onboarding({ onDone }) {
@@ -92,10 +152,19 @@ export default function Onboarding({ onDone }) {
   const [locationLoading, setLocationLoading] = useState(false);
   const [weatherCheck, setWeatherCheck] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [registerError, setRegisterError] = useState(null);
+  const [catalogError, setCatalogError] = useState(null);
 
-  useEffect(() => {
-    api.deviceCatalog().then((d) => setCatalog(d.devices)).catch(() => {});
+  const loadCatalog = useCallback(async () => {
+    setCatalogError(null);
+    try {
+      setCatalog((await api.deviceCatalog()).devices);
+    } catch (e) {
+      setCatalogError(e.message);
+    }
   }, []);
+
+  useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
   const isDeviceSelected = (name) => selectedDevices.some((d) => d.name === name);
   const toggleDevice = (device) =>
@@ -139,29 +208,32 @@ export default function Onboarding({ onDone }) {
     }
   };
 
+  const { errors, warnings } = validate({ panelKw, batteryKwh, bill, userType: type });
+  // Which fields must be valid before leaving each step.
+  const STEP_FIELDS = [[], ['panelKw', 'batteryKwh'], ['bill'], []];
+  const stepBlocked = STEP_FIELDS[step].some((field) => errors[field]);
+
   const finish = async () => {
     setSubmitting(true);
+    setRegisterError(null);
     try {
-      const battery = parseFloat(batteryKwh) || 0;
+      const battery = parseFloat(batteryKwh.replace(',', '.'));
       const resp = await api.register({
         user_type: type,
         city: city.name,
         lat: city.lat,
         lon: city.lon,
-        panel_kw: parseFloat(panelKw) || 5,
+        panel_kw: parseFloat(panelKw.replace(',', '.')),
         battery_kwh: battery,
         battery_power_kw: battery > 0 ? Math.min(battery / 2, 5) : 0,
-        monthly_bill_kwh: parseFloat(bill) || 300,
+        monthly_bill_kwh: parseFloat(bill.replace(',', '.')),
         tariff_type: tariff,
         devices: selectedDevices,
       });
       await AsyncStorage.setItem('userId', String(resp.user_id));
       onDone(resp.user_id);
     } catch (err) {
-      alertUser(
-        'Bağlantı sorunu',
-        `Sunucuya ulaşılamadı. Ayarlar > API adresini kontrol edin.\n\n${err.message}`
-      );
+      setRegisterError(err.message);
     } finally {
       setSubmitting(false);
     }
@@ -216,9 +288,11 @@ export default function Onboarding({ onDone }) {
     <View key="panel">
       <Text style={[text.title, { marginBottom: spacing.m }]}>Güneş sistemin</Text>
       <NumberInput label="Panel gücü (faturanda veya sözleşmende yazar)"
-                   value={panelKw} setValue={setPanelKw} unit="kW" />
+                   value={panelKw} setValue={setPanelKw} unit="kW"
+                   error={errors.panelKw} warning={warnings.panelKw} />
       <NumberInput label="Batarya kapasitesi (yoksa 0 bırak)"
-                   value={batteryKwh} setValue={setBatteryKwh} unit="kWh" />
+                   value={batteryKwh} setValue={setBatteryKwh} unit="kWh"
+                   error={errors.batteryKwh} warning={warnings.batteryKwh} />
       <Text style={text.small}>
         Bataryan olmasa da Wattra cihazlarını güneş saatlerine planlayarak tasarruf sağlar.
       </Text>
@@ -227,7 +301,8 @@ export default function Onboarding({ onDone }) {
     <View key="bill">
       <Text style={[text.title, { marginBottom: spacing.m }]}>Elektrik faturan</Text>
       <NumberInput label="Aylık tüketimin (faturada 'kWh' yazan satır)"
-                   value={bill} setValue={setBill} unit="kWh / ay" />
+                   value={bill} setValue={setBill} unit="kWh / ay"
+                   error={errors.bill} warning={warnings.bill} />
       <Text style={[text.body, { marginBottom: spacing.s }]}>Tarifen hangisi?</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         <Option label="Tek zamanlı (bilmiyorum)" selected={tariff === 'single'}
@@ -246,14 +321,31 @@ export default function Onboarding({ onDone }) {
       <Text style={[text.body, { marginBottom: spacing.m }]}>
         Zamanını kaydırabileceğin cihazları seç — Wattra bunları en ucuz saate planlayacak.
       </Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {catalog
-          .filter((c) => type === 'business' || !c.name.includes('işyeri'))
-          .map((device) => (
-            <Option key={device.name} small label={device.name}
-                    selected={isDeviceSelected(device.name)} onPress={() => toggleDevice(device)} />
-          ))}
-      </View>
+      {catalogError ? (
+        <ErrorState
+          title="Cihaz listesi yüklenemedi"
+          message="Sunucudan cihaz kataloğu alınamadı. Cihaz seçmeden de devam edebilirsin —
+                   sonradan Ayarlar'dan ekleyebilirsin."
+          hint={catalogError}
+          onRetry={loadCatalog}
+        />
+      ) : catalog.length === 0 ? (
+        <LoadingState label="Cihaz listesi yükleniyor…" />
+      ) : (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          {catalog
+            .filter((c) => type === 'business' || !c.name.includes('işyeri'))
+            .map((device) => (
+              <Option key={device.name} small label={device.name}
+                      selected={isDeviceSelected(device.name)} onPress={() => toggleDevice(device)} />
+            ))}
+        </View>
+      )}
+      {catalog.length > 0 && selectedDevices.length === 0 && (
+        <Text style={[text.small, { marginTop: spacing.s, color: colors.amber }]}>
+          Hiç cihaz seçmezsen plan boş kalır — en az bir tane seçmeni öneririz.
+        </Text>
+      )}
     </View>,
   ];
 
@@ -282,15 +374,34 @@ export default function Onboarding({ onDone }) {
 
       <View style={[card, { minHeight: 320 }]}>{steps[step]}</View>
 
+      {registerError && (
+        <ErrorState
+          title="Kurulum tamamlanamadı"
+          message="Sunucuya ulaşılamadı, bu yüzden hesabın oluşturulamadı. Girdiklerin duruyor."
+          hint={`Sunucu adresini kontrol edip tekrar dene. (${registerError})`}
+          onRetry={finish}
+        />
+      )}
+
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Pressable disabled={step === 0} onPress={() => setStep(step - 1)}
-                   style={{ padding: 14, opacity: step === 0 ? 0.25 : 1 }}>
+                   accessibilityRole="button"
+                   accessibilityLabel="Önceki adım"
+                   accessibilityState={{ disabled: step === 0 }}
+                   style={{ padding: 14, minHeight: TOUCH, justifyContent: 'center',
+                            opacity: step === 0 ? 0.25 : 1 }}>
           <Text style={[text.body, { fontFamily: font.medium }]}>← Geri</Text>
         </Pressable>
         <Pressable
-          disabled={submitting}
+          disabled={submitting || stepBlocked}
           onPress={() => (step < steps.length - 1 ? setStep(step + 1) : finish())}
-          style={[primaryButton, { minWidth: 150 }]}
+          accessibilityRole="button"
+          accessibilityLabel={step < steps.length - 1 ? 'Sonraki adım' : 'Kurulumu tamamla'}
+          accessibilityState={{ disabled: submitting || stepBlocked }}
+          style={[primaryButton, {
+            minWidth: 150, minHeight: TOUCH, justifyContent: 'center',
+            opacity: submitting || stepBlocked ? 0.4 : 1,
+          }]}
         >
           {submitting ? (
             <ActivityIndicator color={colors.amberInk} />

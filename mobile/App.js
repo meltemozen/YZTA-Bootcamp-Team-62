@@ -73,6 +73,10 @@ export default function App() {
   });
   const [userId, setUserId] = useState(null);
   const [ready, setReady] = useState(false);
+  // Tabs stay mounted, so a profile edit in Settings would otherwise leave the
+  // Today/Report screens showing a plan built from the OLD tariff or devices.
+  // Bumping this counter re-runs their loaders.
+  const [profileVersion, setProfileVersion] = useState(0);
 
   useEffect(() => {
     AsyncStorage.getItem('userId').then((value) => {
@@ -125,16 +129,22 @@ export default function App() {
         })}
       >
         <Tab.Screen name="Bugün">
-          {() => <Today userId={userId} />}
+          {() => <Today userId={userId} refreshKey={profileVersion} />}
         </Tab.Screen>
         <Tab.Screen name="Asistan">
           {() => <Assistant userId={userId} />}
         </Tab.Screen>
         <Tab.Screen name="Rapor">
-          {() => <Report userId={userId} />}
+          {() => <Report userId={userId} refreshKey={profileVersion} />}
         </Tab.Screen>
         <Tab.Screen name="Ayarlar">
-          {() => <Settings userId={userId} onReset={() => setUserId(null)} />}
+          {() => (
+            <Settings
+              userId={userId}
+              onReset={() => setUserId(null)}
+              onProfileChange={() => setProfileVersion((v) => v + 1)}
+            />
+          )}
         </Tab.Screen>
       </Tab.Navigator>
     </NavigationContainer>

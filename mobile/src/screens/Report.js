@@ -2,9 +2,10 @@
 // Figures are simulation-based and the screen states this honestly.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { api, rangeTL } from '../api';
 import { ScreenHeader } from '../components/Brand';
+import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { spacing, font, card, colors, text } from '../theme';
 
 function Box({ label, value, subText, color }) {
@@ -22,20 +23,22 @@ function Box({ label, value, subText, color }) {
   );
 }
 
-export default function Report({ userId }) {
+export default function Report({ userId, refreshKey = 0 }) {
   const [report, setReport] = useState(null);
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       setReport(await api.report(userId));
-    } catch {
-      setReport(null);
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, refreshKey]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -49,9 +52,26 @@ export default function Report({ userId }) {
     >
       <ScreenHeader title="Ay Sonu Raporu" />
 
-      {loading && !report && <ActivityIndicator style={{ marginTop: 48 }} color={colors.amber} />}
+      {loading && !report && <LoadingState label="Rapor hesaplanıyor…" />}
 
-      {report && (
+      {error && !report && (
+        <ErrorState
+          message="Ay sonu raporu alınamadı."
+          hint={`Ayarlar sekmesinden sunucu adresini kontrol edebilirsin. (${error})`}
+          onRetry={load}
+        />
+      )}
+
+      {report && report.total_count === 0 && (
+        <EmptyState
+          title="Henüz raporlanacak bir ay yok"
+          message={'Bu ay için kaydedilmiş bir plan bulunmuyor. Bugün sekmesinden planını '
+            + 'oluştur ve uyguladığın önerileri işaretle — ay sonunda gerçekleşen tasarrufunu '
+            + 've kaçırdığın fırsatı burada göreceksin.'}
+        />
+      )}
+
+      {report && report.total_count > 0 && (
         <>
           <View style={{ flexDirection: 'row' }}>
             <Box
