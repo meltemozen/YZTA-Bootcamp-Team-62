@@ -98,3 +98,8 @@ CAR_KG_CO2_KM = 0.17
 # Because the consumption profile relies on bill calibration, TL savings are
 # shown to the user as a range rather than a single figure.
 SAVING_UNCERTAINTY = 0.25  # ±25%
+
+# --- Model and Optimizer Versions ---
+# Centralized version strings for transparency. These are exposed in the API
+# and mobile UI so users can see which models generated their plan.
+OPTIMIZER_VERSION = "v1-greedy-coord-descent"

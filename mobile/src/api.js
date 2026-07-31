@@ -47,6 +47,7 @@ export const api = {
   report: (id, month) => request(`/api/report/${id}${month ? `?month=${month}` : ''}`),
   notifications: (id) => request(`/api/notifications/${id}`),
   deviceCatalog: () => request('/api/device-catalog'),
+  modelVersions: () => request('/api/model-versions'),
 };
 
 // Render the saving range readably: if the ends collapse when rounded ("1–1 TL")

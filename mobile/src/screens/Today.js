@@ -124,8 +124,31 @@ export default function Today({ userId }) {
               <Text style={{
                 fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.55)', marginTop: 5,
               }}>
-                Model: {plan.chart_data.models.production} · {plan.chart_data.models.consumption}
+                Üretim: {plan.chart_data.models.production} · Tüketim: {plan.chart_data.models.consumption}
+                {plan.chart_data.models.optimizer ? ` · Optimizer: ${plan.chart_data.models.optimizer}` : ''}
               </Text>
+            )}
+            {plan.weather_source && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 }}>
+                <View style={{
+                  paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+                  backgroundColor: plan.weather_source === 'live' ? 'rgba(47,191,102,0.25)'
+                    : plan.weather_source === 'cached' ? 'rgba(247,179,43,0.25)'
+                    : 'rgba(242,109,109,0.25)',
+                }}>
+                  <Text style={{
+                    fontFamily: font.semibold, fontSize: 9.5, letterSpacing: 0.5,
+                    textTransform: 'uppercase',
+                    color: plan.weather_source === 'live' ? '#1a6b35'
+                      : plan.weather_source === 'cached' ? '#6b4400'
+                      : '#6b1a1a',
+                  }}>
+                    Hava: {plan.weather_source === 'live' ? 'Canlı'
+                      : plan.weather_source === 'cached' ? 'Önbellek'
+                      : 'Sentetik'}
+                  </Text>
+                </View>
+              </View>
             )}
           </LinearGradient>
 

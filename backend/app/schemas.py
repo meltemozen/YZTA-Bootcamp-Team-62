@@ -114,6 +114,7 @@ class DailyPlan(BaseModel):
     total_saving_tl_max: float
     co2_saved_kg: float
     self_consumption_ratio: float = Field(description="Share of production consumed at home 0-1")
+    weather_source: str = Field(default="live", description="'live' | 'cached' | 'synthetic' — provenance of the weather data used")
     chart_data: dict = Field(default_factory=dict, description="For charts: production/consumption/price arrays")
 
 
@@ -160,13 +161,16 @@ class MonthlyReport(BaseModel):
     month: str
     applied_count: int
     total_count: int
-    realized_saving_tl_min: float
-    realized_saving_tl_max: float
+    realized_saving_tl_min: float = Field(description="Lower bound of realized savings")
+    realized_saving_tl_max: float = Field(description="Upper bound of realized savings")
     missed_saving_tl: float = Field(description="Counterfactual: value of unapplied suggestions")
     co2_saved_kg: float
     # Environmental/social impact equivalents (SDG 7 & 13 narrative)
     car_km_equiv: float = Field(default=0, description="Car-km equivalent of avoided CO2")
     tree_month_equiv: float = Field(default=0, description="How many trees' monthly absorption")
+    data_disclaimer: str = Field(
+        default="Tüm tasarruf rakamları tarife ve üretim tahminine dayalı simülasyondur; sayaç ölçümü değildir.",
+        description="Transparency disclaimer shown to the user")
     note: str
 
 
@@ -182,3 +186,4 @@ class WeatherCheck(BaseModel):
     max_temp_c: float
     production_model_version: str
     estimated_production_kwh: float
+    weather_source: str = Field(default="live", description="'live' | 'cached' | 'synthetic'")

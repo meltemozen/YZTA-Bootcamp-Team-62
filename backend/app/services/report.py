@@ -1,8 +1,9 @@
 """Monthly report — the proven-value layer.
 
 The counterfactual is framed HONESTLY: the saving of items marked "applied" is
-reported as 'realized', the rest as 'missed opportunity'. Both figures rest on
-the optimization simulation (not meter readings) and the note text says so.
+reported as 'estimated' (simulation-based, not meter-verified), the rest as
+'missed opportunity'. Both figures rest on the optimization simulation (not
+meter readings) and the note text says so.
 """
 
 from .. import config, db

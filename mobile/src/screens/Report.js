@@ -1,5 +1,6 @@
-// Monthly report: realized saving + missed opportunity (counterfactual) + CO2.
-// Figures are simulation-based and the screen states this honestly.
+// Monthly report: estimated saving (simulation-based) + missed opportunity
+// (counterfactual) + CO2. Figures are simulation-based and the screen states
+// this honestly.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native';
@@ -55,9 +56,9 @@ export default function Report({ userId }) {
         <>
           <View style={{ flexDirection: 'row' }}>
             <Box
-              label="Gerçekleşen"
+              label="Tahmini Tasarruf"
               value={rangeTL(report.realized_saving_tl_min, report.realized_saving_tl_max)}
-              subText={`${report.applied_count}/${report.total_count} öneri uygulandı`}
+              subText={`${report.applied_count}/${report.total_count} öneri uygulandı (simülasyon)`}
               color={colors.goodText}
             />
             <Box
@@ -92,8 +93,8 @@ export default function Report({ userId }) {
           </View>
 
           <Text style={[text.small, { textAlign: 'center', marginTop: spacing.s, lineHeight: 17 }]}>
-            Tasarruf rakamları tarife + üretim tahminine dayalı simülasyondur;{'\n'}
-            sayaç ölçümü değildir. Yöntem: docs/METHOD.md
+            {report.data_disclaimer || 'Tasarruf rakamları tarife + üretim tahminine dayalı simülasyondur.'}
+            {'\n'}Sayaç ölçümü değildir. Yöntem: docs/METHOD.md
           </Text>
         </>
       )}

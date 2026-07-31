@@ -12,10 +12,12 @@ import { primaryButton, primaryButtonText, spacing, font, card, colors, text } f
 export default function Settings({ userId, onReset }) {
   const [url, setUrl] = useState('');
   const [profile, setProfile] = useState(null);
+  const [modelInfo, setModelInfo] = useState(null);
 
   useEffect(() => {
     apiUrl().then(setUrl);
     api.profile(userId).then(setProfile).catch(() => {});
+    api.modelVersions().then(setModelInfo).catch(() => {});
   }, [userId]);
 
   const saveUrl = async () => {
@@ -72,6 +74,41 @@ export default function Settings({ userId, onReset }) {
           <Text style={[primaryButtonText, { fontSize: 14 }]}>Kaydet</Text>
         </Pressable>
       </View>
+
+      {modelInfo && (
+        <View style={card}>
+          <Text style={text.label}>Model Bilgileri</Text>
+          <Text style={[text.small, { marginTop: spacing.s, color: colors.inkSecondary }]}>
+            Planların hangi modellerle üretildiğini görebilirsin.
+          </Text>
+          <View style={{ marginTop: spacing.s, gap: 6 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={[text.small, { color: colors.faint }]}>Üretim modeli</Text>
+              <Text style={[text.small, { color: colors.ink, fontFamily: font.medium }]}>
+                {modelInfo.production_model}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={[text.small, { color: colors.faint }]}>Tüketim modeli</Text>
+              <Text style={[text.small, { color: colors.ink, fontFamily: font.medium }]}>
+                {modelInfo.consumption_model}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={[text.small, { color: colors.faint }]}>Optimizer</Text>
+              <Text style={[text.small, { color: colors.ink, fontFamily: font.medium }]}>
+                {modelInfo.optimizer}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={[text.small, { color: colors.faint }]}>Uygulama</Text>
+              <Text style={[text.small, { color: colors.ink, fontFamily: font.medium }]}>
+                {modelInfo.app_version}
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       <Pressable onPress={resetAccount} style={[card, { alignItems: 'center' }]}>
         <Text style={{ color: colors.critical, fontFamily: font.semibold, fontSize: 14 }}>
