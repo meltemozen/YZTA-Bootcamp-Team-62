@@ -155,6 +155,7 @@ export const api = {
   report: (id, month) => request(`/api/report/${id}${month ? `?month=${month}` : ''}`),
   notifications: (id) => request(`/api/notifications/${id}`),
   deviceCatalog: () => request('/api/device-catalog', { _skipAuth: true }),
+  modelVersions: () => request('/api/model-versions', { _skipAuth: true }),
 };
 
 // Render the saving range readably: if the ends collapse when rounded ("1–1 TL")

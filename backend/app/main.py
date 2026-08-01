@@ -117,6 +117,23 @@ def health():
     return {"status": "ok", "version": APP_VERSION, "agent": agent}
 
 
+@app.get("/api/model-versions")
+def model_versions():
+    """Transparency endpoint: returns every model/optimizer version in use."""
+    manifest_path = os.path.join(os.path.dirname(__file__), "models", "manifest.json")
+    try:
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        manifest = {}
+    return {
+        "production_model": manifest.get("production", {}).get("version", "unknown"),
+        "consumption_model": manifest.get("consumption", {}).get("version", "unknown"),
+        "optimizer": config.OPTIMIZER_VERSION,
+        "app_version": APP_VERSION,
+        "manifest": manifest,
+    }
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Authentication endpoints
 # ──────────────────────────────────────────────────────────────────────────────
@@ -244,7 +261,6 @@ def auth_change_password(req: PasswordChangeRequest,
 # ──────────────────────────────────────────────────────────────────────────────
 # Weather check (public — no auth required)
 # ──────────────────────────────────────────────────────────────────────────────
-
 @app.get("/api/weather-check", response_model=WeatherCheck)
 def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "today"):
     if day in ("today", "bugun", "bugün"):
@@ -271,6 +287,7 @@ def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "tod
         max_temp_c=round(max(weather.temp_c), 1),
         production_model_version=production.model_version,
         estimated_production_kwh=production.total_kwh,
+        weather_source=weather.source,
     )
 
 
