@@ -73,6 +73,10 @@ function AppContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const [authScreen, setAuthScreen] = useState('login'); // 'login' | 'register'
   const [onboardingDone, setOnboardingDone] = useState(false);
+  // Tabs stay mounted, so a profile edit in Settings would otherwise leave the
+  // Today/Report screens showing a plan built from the OLD tariff or devices.
+  // Bumping this counter re-runs their loaders.
+  const [profileVersion, setProfileVersion] = useState(0);
 
   // Check if user has completed onboarding (has a real profile stored)
   useEffect(() => {
@@ -148,19 +152,24 @@ function AppContent() {
         })}
       >
         <Tab.Screen name="Bugün">
-          {() => <Today userId={user.id} />}
-        </Tab.Screen>
+          {() => <Today userId={user.id} refreshKey={profileVersion} />}
+        </Tab.Screen >
         <Tab.Screen name="Asistan">
           {() => <Assistant userId={user.id} />}
         </Tab.Screen>
         <Tab.Screen name="Rapor">
-          {() => <Report userId={user.id} />}
+          {() => <Report userId={user.id} refreshKey={profileVersion} />}
         </Tab.Screen>
         <Tab.Screen name="Ayarlar">
-          {() => <Settings userId={user.id} />}
-        </Tab.Screen>
-      </Tab.Navigator>
-    </NavigationContainer>
+          {() => (
+            <Settings
+              userId={user.id}
+              onProfileChange={() => setProfileVersion((v) => v + 1)}
+            />
+          )}
+    </Tab.Screen>
+      </Tab.Navigator >
+    </NavigationContainer >
   );
 }
 

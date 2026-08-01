@@ -29,6 +29,22 @@ class Device(BaseModel):
     source: str | None = Field(default=None, description="Assumption/source note")
 
 
+class CustomTariff(BaseModel):
+    """The user's OWN unit prices, read off their bill (TL/kWh, taxes included).
+
+    The built-in EPDK table is a snapshot, not a live feed, so a user whose
+    bill differs can override it here. Any field left empty falls back to the
+    regulated table, which keeps the form forgiving: a user who only knows
+    their daytime price can still enter just that.
+    """
+    single: float | None = Field(default=None, gt=0, description="Flat unit price")
+    day: float | None = Field(default=None, gt=0, description="Three-zone 06-17")
+    peak: float | None = Field(default=None, gt=0, description="Three-zone 17-22")
+    night: float | None = Field(default=None, gt=0, description="Three-zone 22-06")
+    sell: float | None = Field(default=None, gt=0,
+                               description="Net-metering sell price if the user knows it")
+
+
 class HouseholdProfile(BaseModel):
     user_type: Literal["home", "business"] = "home"
     city: str = "İzmir"
@@ -39,6 +55,8 @@ class HouseholdProfile(BaseModel):
     battery_power_kw: float = Field(default=0, ge=0, description="Max charge/discharge power")
     monthly_bill_kwh: float = Field(gt=0, description="Last bill monthly consumption — calibration input")
     tariff_type: Literal["single", "three_zone"] = "single"
+    custom_tariff: CustomTariff | None = Field(
+        default=None, description="User's own prices; overrides the built-in EPDK table")
     devices: list[Device] = []
     work_start: int = Field(default=8, ge=0, le=23, description="For businesses")
     work_end: int = Field(default=19, ge=0, le=23)
