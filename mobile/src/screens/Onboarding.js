@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, Text, TextInput, View,
 } from 'react-native';
-import { api } from '../api';
+import { api, WEATHER_SOURCE_NOTE } from '../api';
 import { alertUser } from '../notify';
 import { LogoMark, Wordmark } from '../components/Brand';
 import { ErrorState, LoadingState, TOUCH } from '../components/States';
@@ -283,6 +283,11 @@ export default function Onboarding({ userId, onDone }) {
           <Text style={[text.small, { marginTop: 6 }]}>
             Model: {weatherCheck.production_model_version}
           </Text>
+          {WEATHER_SOURCE_NOTE[weatherCheck.weather_source] && (
+            <Text style={[text.small, { marginTop: 4, color: colors.amber }]}>
+              {WEATHER_SOURCE_NOTE[weatherCheck.weather_source]}
+            </Text>
+          )}
         </View>
       )}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>

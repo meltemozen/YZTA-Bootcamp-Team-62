@@ -173,3 +173,11 @@ export const REASON_TEXT = {
   cheap_night: 'Gece tarifesi en ucuz dilim',
   netmeter_edge: 'Evde tüketmek şebekeye satmaktan kârlı',
 };
+
+// Data-quality disclosure: shown whenever the backend's weather_source isn't
+// "live" (weather-check onboarding card, Today screen), mirroring the same
+// rule the assistant chat's system prompt and fallback templates follow.
+export const WEATHER_SOURCE_NOTE = {
+  cached: 'Canlı hava verisine şu an ulaşılamadı — en son bilinen veri kullanılıyor.',
+  synthetic: 'Canlı hava verisine ulaşılamadı — mevsimsel tahmini veri kullanılıyor.',
+};

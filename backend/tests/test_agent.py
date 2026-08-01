@@ -269,12 +269,12 @@ def test_backstop_does_not_duplicate_llm_write(monkeypatch):
 
     def dutiful_gemini_loop(context, message):
         context.write_memory("Salı öğlen evde yok.")
-        return "Kaydettim, salı öğlenleri plana katmayacağım."
+        return "Kaydettim, yarın öğlenleri plana katmayacağım."
 
     monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(orchestrator, "_gemini_loop", dutiful_gemini_loop)
 
-    orchestrator.assistant_reply(uid, db.get_user(uid), "salı öğlen evde yokum")
+    orchestrator.assistant_reply(uid, db.get_user(uid), "yarın öğlen evde yokum")
 
     assert len(db.preferences(uid)) == 1, "LLM already wrote; backstop must not duplicate"
 
@@ -283,8 +283,8 @@ def test_preference_triggers_semantic_search_and_recall():
     """S2-5: a new preference first searches similar past ones; a genuinely
     similar preference is surfaced back to the user in the reply."""
     uid = _new_user()
-    assistant_reply(uid, db.get_user(uid), "salı öğlen evde yokum")
-    r = assistant_reply(uid, db.get_user(uid), "salı öğlen evde olmuyorum")
+    assistant_reply(uid, db.get_user(uid), "yarın öğlen evde yokum")
+    r = assistant_reply(uid, db.get_user(uid), "yarın öğlen evde olmuyorum")
     assert any("search_preferences" in c for c in r.tool_calls), \
         "preference must trigger a similarity search"
-    assert "salı öğlen evde yokum" in r.reply, "similar past preference must be recalled"
+    assert "yarın öğlen evde yokum" in r.reply, "similar past preference must be recalled"

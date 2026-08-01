@@ -37,6 +37,11 @@ from ..schemas import (
     Tariff,
 )
 
+# No trained artifact backs this algorithm (unlike production/consumption
+# model_version) — bump by hand whenever the placement/coordinate-descent
+# logic below changes materially.
+_OPTIMIZER_VERSION = "v1-greedy-coordinate-descent"
+
 
 def _profile_cost(net: list[float], price: list[float], sell: list[float]) -> float:
     """Daily TL cost — HOURLY net-metering (Official Gazette 02.04.2026):
@@ -336,6 +341,7 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
         total_saving_tl_max=round(sum(i.saving_tl_max for i in items), 2),
         co2_saved_kg=co2,
         self_consumption_ratio=self_ratio,
+        optimizer_version=_OPTIMIZER_VERSION,
         weather_source=weather_source,
         chart_data={
             "production": production.hourly_kwh,
@@ -344,7 +350,9 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
             "band": tariff.band,
             "models": {
                 "production": production.model_version,
+                "production_trained_at": production.trained_at,
                 "consumption": consumption.model_version,
+                "consumption_trained_at": consumption.trained_at,
                 "optimizer": config.OPTIMIZER_VERSION,
             },
             "weather_source": weather_source,

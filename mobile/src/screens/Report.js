@@ -76,7 +76,7 @@ export default function Report({ userId, refreshKey = 0 }) {
         <>
           <View style={{ flexDirection: 'row' }}>
             <Box
-              label="Tahmini Tasarruf"
+              label="Uygulanan (tahmini)"
               value={rangeTL(report.realized_saving_tl_min, report.realized_saving_tl_max)}
               subText={`${report.applied_count}/${report.total_count} öneri uygulandı (simülasyon)`}
               color={colors.goodText}

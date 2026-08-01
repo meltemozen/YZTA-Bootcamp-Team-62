@@ -40,6 +40,7 @@ from .auth import (
     require_same_user,
     verify_password,
 )
+from .model_manifest import load_manifest
 from .schemas import (
     AssistantRequest,
     AssistantResponse,
@@ -114,7 +115,8 @@ db.init_db()
 @app.get("/api/health")
 def health():
     agent = "gemini" if config.GEMINI_API_KEY else "ollama" if config.OLLAMA_ENABLED else "fallback"
-    return {"status": "ok", "version": APP_VERSION, "agent": agent}
+    models = {name: entry.model_dump() for name, entry in load_manifest().items()}
+    return {"status": "ok", "version": APP_VERSION, "agent": agent, "models": models}
 
 
 @app.get("/api/model-versions")

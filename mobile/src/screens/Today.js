@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Pressable, RefreshControl, ScrollView, Text, View,
 } from 'react-native';
-import { api, rangeTL } from '../api';
+import { api, rangeTL, WEATHER_SOURCE_NOTE } from '../api';
 import DailyChart from '../components/DailyChart';
 import { SunIcon, LeafIcon } from '../components/Icons';
 import { ScreenHeader } from '../components/Brand';
@@ -16,6 +16,8 @@ import {
 } from '../components/States';
 import { spacing, font, card, colors, text } from '../theme';
 
+// "v1-lightgbm (2026-07-15)" — omits the date when a model has none (the
+// hardcoded v0 physical/profile fallback has no training date).
 // Raw artifact ids (v1-lightgbm …) are engineering detail; the user gets a
 // plain-Turkish name. Unknown ids fall through unchanged rather than lying.
 const MODEL_LABELS = {
@@ -27,6 +29,11 @@ const MODEL_LABELS = {
   'v2-catboost-calibrated': 'CatBoost kalibreli v2',
 };
 const modelLabel = (id) => MODEL_LABELS[id] || id;
+
+function formatModel(version, trainedAt) {
+  const label = modelLabel(version);
+  return trainedAt ? `${label} (${trainedAt})` : label;
+}
 
 function DaySelector({ day, setDay }) {
   return (
@@ -147,8 +154,9 @@ export default function Today({ userId, refreshKey = 0 }) {
               <Text style={{
                 fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.55)', marginTop: 5,
               }}>
-                Üretim: {modelLabel(plan.chart_data.models.production)} · Tüketim:{' '}
-                {modelLabel(plan.chart_data.models.consumption)}
+                Üretim: {formatModel(plan.chart_data.models.production, plan.chart_data.models.production_trained_at)}
+                {' · '}Tüketim:{' '}
+                {formatModel(plan.chart_data.models.consumption, plan.chart_data.models.consumption_trained_at)}
                 {plan.chart_data.models.optimizer ? ` · Optimizer: ${plan.chart_data.models.optimizer}` : ''}
               </Text>
             )}

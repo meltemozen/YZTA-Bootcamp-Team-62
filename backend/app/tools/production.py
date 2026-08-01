@@ -50,6 +50,7 @@ def _load_model() -> dict:
     except (OSError, json.JSONDecodeError):
         return {
             "model_version": "v0-physical",
+            "trained_at": None,
             "coefficients": {},
             "fallback_performance_ratio": config.PV_PERFORMANCE_RATIO,
             "blend_with_physical": 1.0,
@@ -162,6 +163,8 @@ def forecast_production(weather: Weather, panel_kw: float) -> ProductionForecast
         hourly_kwh=hourly,
         total_kwh=round(sum(hourly), 2),
         model_version=model_version,
+        trained_at=model.get("trained_at"),
+        weather_source=weather.source,
     )
 
 

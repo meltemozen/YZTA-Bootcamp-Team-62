@@ -88,6 +88,12 @@ class ProductionForecast(BaseModel):
     hourly_kwh: list[float] = Field(description="24 elements")
     total_kwh: float
     model_version: str = Field(description="'v0-physical' | 'v1-lightgbm' — DS team swaps in v1")
+    trained_at: str | None = Field(
+        default=None, description="Training/deploy date (YYYY-MM-DD) of this model_version's "
+                                  "artifact; None for the hardcoded v0-physical fallback")
+    weather_source: Literal["live", "cached", "synthetic"] = Field(
+        default="live", description="Passthrough of the Weather.source this forecast was built "
+                                    "from, so downstream consumers (plan, UI) can disclose it")
 
 
 class ConsumptionForecast(BaseModel):
@@ -96,6 +102,9 @@ class ConsumptionForecast(BaseModel):
     hourly_kwh: list[float]
     total_kwh: float
     model_version: str = "v0-profile"
+    trained_at: str | None = Field(
+        default=None, description="Training/deploy date (YYYY-MM-DD) of this model_version's "
+                                  "artifact; None for the hardcoded v0-profile fallback")
 
 
 class Tariff(BaseModel):
@@ -132,6 +141,10 @@ class DailyPlan(BaseModel):
     total_saving_tl_max: float
     co2_saved_kg: float
     self_consumption_ratio: float = Field(description="Share of production consumed at home 0-1")
+    optimizer_version: str = Field(
+        default="v1-greedy-coordinate-descent",
+        description="Version tag for the deterministic optimize() algorithm — no trained "
+                    "artifact backs this, bumped manually when the algorithm changes")
     weather_source: str = Field(default="live", description="'live' | 'cached' | 'synthetic' — provenance of the weather data used")
     chart_data: dict = Field(default_factory=dict, description="For charts: production/consumption/price arrays")
 
@@ -179,8 +192,10 @@ class MonthlyReport(BaseModel):
     month: str
     applied_count: int
     total_count: int
-    realized_saving_tl_min: float = Field(description="Lower bound of realized savings")
-    realized_saving_tl_max: float = Field(description="Upper bound of realized savings")
+    realized_saving_tl_min: float = Field(
+        description="Simulated saving for applied suggestions — NOT a meter reading")
+    realized_saving_tl_max: float = Field(
+        description="Simulated saving for applied suggestions — NOT a meter reading")
     missed_saving_tl: float = Field(description="Counterfactual: value of unapplied suggestions")
     co2_saved_kg: float
     # Environmental/social impact equivalents (SDG 7 & 13 narrative)
@@ -204,7 +219,36 @@ class WeatherCheck(BaseModel):
     max_temp_c: float
     production_model_version: str
     estimated_production_kwh: float
-    weather_source: str = Field(default="live", description="'live' | 'cached' | 'synthetic'")
+    weather_source: Literal["live", "cached", "synthetic"] = Field(
+        description="Whether the underlying weather is a fresh Open-Meteo call, a cached "
+                    "fallback, or a synthetic seasonal estimate — surfaced so the UI can "
+                    "disclose degraded data quality instead of presenting it as live")
+
+
+# --------------------------------------------------------------------------
+# Model artifact registry (docs/SPRINTS.md TDB-4) — surfaced via /api/health.
+# Not part of the locked agent tool contract above; a diagnostics/transparency
+# structure read from backend/app/models/manifest.json by model_manifest.py.
+# --------------------------------------------------------------------------
+
+class ModelMetrics(BaseModel):
+    """All fields are None when not genuinely known — never a fabricated
+    placeholder. See ModelManifestEntry.note for what a given number actually
+    measures (e.g. a model-selection hold-out run vs. the deployed artifact)."""
+    mae: float | None = None
+    rmse: float | None = None
+    nmae_pct: float | None = Field(default=None, description="Normalized MAE %, production-model only")
+
+
+class ModelManifestEntry(BaseModel):
+    model_name: str = Field(description="Human-readable name, e.g. 'PV Production Forecast'")
+    version: str = Field(description="Matches the artifact's own model_version/algorithm tag")
+    trained_at: str | None = Field(default=None, description="YYYY-MM-DD; None if not a trained artifact")
+    artifact: str | None = Field(default=None, description="Where the artifact file(s) live")
+    data_source: str | None = None
+    data_range: str | None = None
+    metrics: ModelMetrics = Field(default_factory=ModelMetrics)
+    note: str | None = None
 
 # --------------------------------------------------------------------------
 # Authentication schemas (API-layer only — does NOT affect tool contracts)

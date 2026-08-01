@@ -1,5 +1,6 @@
 {
   "model_version": "v1-lightgbm",
+  "trained_at": "2026-07-15",
   "model_type": "lightgbm",
   "model_file": "production_v1_lgbm.txt",
   "trained_on": "data/raw/pvgis_hourly.csv + data/raw/open_meteo_hourly.csv, full history (no holdout \u2014 see compare_production_models.py for the held-out evaluation)",

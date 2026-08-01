@@ -41,6 +41,7 @@ def _load_model() -> dict:
     except (OSError, json.JSONDecodeError):
         return {
             "model_version": "v0-profile",
+            "trained_at": None,
             "home_shape": fallback_home,
             "business_shape": fallback_business,
             "seasonality": {"home_amplitude": 0.10, "business_amplitude": 0.15},
@@ -86,4 +87,5 @@ def forecast_consumption(profile: HouseholdProfile, day: date) -> ConsumptionFor
         hourly_kwh=hourly,
         total_kwh=round(sum(hourly), 2),
         model_version=model.get("model_version", "v1-generic-load-shape"),
+        trained_at=model.get("trained_at"),
     )
