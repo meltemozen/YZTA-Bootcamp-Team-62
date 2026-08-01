@@ -31,7 +31,6 @@ from fastapi.responses import JSONResponse
 from . import config, db
 from .agent import assistant_reply
 from .agent.context import ToolContext
-from .model_manifest import load_manifest
 from .auth import (
     create_access_token,
     create_refresh_token,
@@ -41,6 +40,7 @@ from .auth import (
     require_same_user,
     verify_password,
 )
+from .model_manifest import load_manifest
 from .schemas import (
     AssistantRequest,
     AssistantResponse,
