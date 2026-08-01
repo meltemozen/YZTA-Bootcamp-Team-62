@@ -116,7 +116,7 @@ faturasını düşürmek ve güneşinden en yüksek faydayı almak isteyen herke
 
 </details>
 
-<details open>
+<details>
 <summary><h2>Sprint 2 (6 – 19 Temmuz) · 34 SP</h2></summary>
 
 **Sprint Notları:** Bu sprint'te tahmin motoru v1 model artifact'leriyle güçlendirildi: üretim modeli LightGBM, tüketim modeli CatBoost olarak yeniden eğitilip v0 ile karşılaştırmalı raporlandı ve tüketim modeli EPİAŞ verisiyle kalibre edildi. Chroma tabanlı semantik hafıza (`search_preferences`) eklendi, cihaz kataloğu ve EV şarj senaryosu güç-bilinçli planlamaya entegre edildi. Gemini agent uçtan uca test edilip prompt'lar optimize edildi.
@@ -180,21 +180,46 @@ _Tüketim Modeli (v0 → v1):_
 
 </details>
 
-<details>
+<details open>
 <summary><h2>Sprint 3 (20 Temmuz – 2 Ağustos) · 21 SP </h2></summary>
 
-**Hedef:** Modelleri değerlendir, ürünü canlıya al, teslim paketini hazırla.
+**Sprint Notları:** Bu sprint'te projenin tam anlamıyla "ürünleşme" ve "şeffaflık" adımlarına odaklanıldı. Kullanıcıların tamamen kendilerine ait bir deneyim yaşaması için giriş/kayıt (Authentication) sistemi entegre edildi. Son olarak arayüzde (UI) yükleniyor, boş ve hata durumları eklenerek uygulamanın kararlılığı cilalandı.
+
+**Tamamlanan Puan:** Sprint 3 için 21 puanlık iş yapılacağı belirlenmiştir ve 21 puanlık iş tamamlanmıştır.
+
+**Tahmin Mantığı:** Yapılacak taskların her biri zorluk, öncelik ve yapılma süresine bağlı olarak puanlandırılmıştır. Sprint 3 için 21 puan planlanmış ve 21 puan tamamlanmıştır. Sprint 3'te daha çok projenin kullanıcı arayüzünün iyileştirilmesi ve agent'ın test edilmesi hedeflenmiştir. Bu nedenle diğer sprintlere göre daha az puan verilmiştir.
+
+**Daily Scrum:** WhatsApp üzerinden günlük senkronizasyon sağlandı. Toplantılar Slack Huddle üzerinden yapıldı.
+
+![Sprint 3 Huddle](docs/gorseller/sprint3_huddle.png)
+
+**Scrum Board Ekran Görüntüsü**
+
+![Sprint 3 Scrum Board](docs/gorseller/sprint3_scrumboard.png)
+
+**Sprint 3 Burndown Chart**
+
+![Sprint 3 Burndown Chart](docs/gorseller/sprint3_burndownChart.png)
+
+**Ürün Ekran Görüntüleri** 
+
+| Asistan | Rapor | Bugün | Yarın | Ayarlar |
+|---|---|---|---|---|
+
+
+
+**Sprint Review:** Bu sprint'te projeyi bir prototipten ürüne dönüştürmek hedeflendi. JWT tabanlı çoklu oturum (Auth) sistemi başarıyla entegre edilerek kullanıcı verileri güvenle izole edildi. Model şeffaflığını sağlamak adına eğitim verileri (EPİAŞ) ve sabit EPDK tarifeleri `manifest.json` dosyası ve şeffaf UI uyarılarıyla (live/cached) görünür kılındı. Ayrıca, uç durumlardaki hatalar iyileştirilip tasarruf hesaplamaları çok daha dürüst bir dille ("Uygulanan - tahmini") anlatılarak kullanıcı deneyimi profesyonelleştirildi.
+
+**Sprint Retrospective:** Bu sprint, görev dağılımının ve ekip içi iletişimin en verimli ilerlediği süreç oldu. yapay zeka ve veri bilimi ekiplerinin eşzamanlı çalışmaları çok daha koordine yürütüldü. Saatlik mahsuplaşma problemine donanım gerektirmeyen, tamamen çalışan ve değer üreten bir ürün ortaya koymuş olmanın gururuyla Bootcamp süreci başarıyla tamamlandı.
 
 | # | Görev | Ekip | SP |
 |---|---|---|---|
-| S3-1 | Model doğruluk raporu (nMAE, hold-out; v0 baseline vs v1) | VB | 5 |
-| S3-2 | Canlıya alma: Railway/Cloud Run backend + EAS ile Android APK | Ortak | 5 |
-| S3-3 | EPDK güncel tarife + mahsup bedeli son teyidi (`config.py`) | Ortak | 2 |
-| S3-4 | 3 dk demo videosu + README finalize + teslim formu | Ortak | 5 |
-| S3-5 | Erişilebilirlik + son cila (UI durumları, hata ekranları) | YZ | 4 |
+| S3-1 | Production Veri Gerçekliği ve Model Şeffaflığı | Ortak | 5 |
+| S3-2 | Canlıya alma: Railway/Cloud Run backend + EAS ile Android APK | YZ | 5 |
+| S3-3 | Login/Register/Logout/User Profile Ekranları| Ortak | 4 |
+| S3-4 | 3 dk demo videosu + README finalize + teslim formu | Ortak | 3 |
+| S3-5 | Arayüz (UI) İyileştirmeleri ve Hata Ekranları (Son Cila) | Ortak | 4 |
 
-**Teslim (2 Ağustos):** public GitHub repo, canlı URL (varsa), 3 dk YouTube videosu,
-eksiksiz teslim formu.
 
 </details>
 
