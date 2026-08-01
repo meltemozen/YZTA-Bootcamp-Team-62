@@ -96,11 +96,13 @@ class ToolContext:
         self._calls.append(f"get_tariff({d})")
         self._tariff[d] = get_tariff(d, self.profile.user_type,
                                      self.profile.tariff_type,
-                                     monthly_kwh=self.profile.monthly_bill_kwh)
+                                     monthly_kwh=self.profile.monthly_bill_kwh,
+                                     custom=self.profile.custom_tariff)
         tf = self._tariff[d]
         return {"tariff_type": self.profile.tariff_type,
                 "cheapest_hour_tl": min(tf.hourly_price), "priciest_hour_tl": max(tf.hourly_price),
                 "avg_sell_tl": tf.avg_sell_price,
+                "price_source": tf.source,
                 "note": "Hourly net-metering: sell price is ~30% below buy every hour, "
                         "so consuming production within that hour beats selling it."}
 
@@ -114,8 +116,15 @@ class ToolContext:
         if d not in self._tariff:
             self.get_tariff(str(d))
         current_hour = self._weather.get(d).current_hour if d in self._weather else None
+        weather_source = self._weather[d].source if d in self._weather else "live"
         plan = optimize(self._production[d], self._consumption[d], self._tariff[d],
-                        self.profile, set(blocked_hours or []), current_hour=current_hour)
+                        self.profile, set(blocked_hours or []), current_hour=current_hour,
+                        weather_source=weather_source)
+        # Honesty: the UI must be able to say WHEN a plan rests on offline
+        # fallback weather instead of a live forecast (see mobile DataQuality).
+        weather = self._weather.get(d)
+        plan.chart_data["data_quality"] = {
+            "weather_source": weather.source if weather else "unknown"}
         self.last_plan = plan
         db.save_plan(self.user_id, plan)
         return {

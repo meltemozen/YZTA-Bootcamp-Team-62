@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { api } from '../api';
 import { ScreenHeader } from '../components/Brand';
+import { TOUCH } from '../components/States';
 import { spacing, font, colors, text } from '../theme';
 
 const EXAMPLES = [
@@ -49,9 +50,16 @@ export default function Assistant({ userId }) {
         },
       ]);
     } catch {
+      // Keep the question on the message so one tap can retry it — retyping
+      // after a dropped connection is the most annoying way to lose work.
       setMessages((m) => [
         ...m,
-        { role: 'assistant', text: 'Sunucuya ulaşamadım — Ayarlar\'dan API adresini kontrol eder misin?' },
+        {
+          role: 'assistant',
+          failed: message,
+          text: 'Sunucuya ulaşamadım, cevabı alamadım. Bağlantını kontrol edip '
+            + 'tekrar deneyebilirsin (sunucu adresi Ayarlar\'dan değiştirilebilir).',
+        },
       ]);
     } finally {
       setPending(false);
@@ -105,6 +113,23 @@ export default function Assistant({ userId }) {
                 </Text>
               </View>
             )}
+            {m.failed && (
+              <Pressable
+                onPress={() => send(m.failed)}
+                disabled={pending}
+                accessibilityRole="button"
+                accessibilityLabel="Mesajı tekrar gönder"
+                style={{
+                  marginTop: 10, minHeight: TOUCH, borderRadius: 12, borderWidth: 1,
+                  borderColor: colors.amber, alignItems: 'center', justifyContent: 'center',
+                  opacity: pending ? 0.5 : 1,
+                }}
+              >
+                <Text style={{ color: colors.amber, fontFamily: font.semibold, fontSize: 13.5 }}>
+                  Tekrar dene
+                </Text>
+              </Pressable>
+            )}
           </View>
         ))}
         {pending && <ActivityIndicator style={{ marginVertical: spacing.s }} color={colors.amber} />}
@@ -115,9 +140,11 @@ export default function Assistant({ userId }) {
               <Pressable
                 key={example}
                 onPress={() => send(example)}
+                accessibilityRole="button"
+                accessibilityLabel={`Örnek soru: ${example}`}
                 style={{
                   borderWidth: 1, borderColor: colors.border, borderRadius: 18,
-                  paddingVertical: 9, paddingHorizontal: 13,
+                  paddingVertical: 12, paddingHorizontal: 14,
                   marginRight: spacing.s, marginBottom: spacing.s, backgroundColor: colors.surface,
                 }}
               >
@@ -143,12 +170,19 @@ export default function Assistant({ userId }) {
         />
         <Pressable
           onPress={() => send()}
+          disabled={pending || !input.trim()}
+          accessibilityRole="button"
+          accessibilityLabel="Gönder"
+          accessibilityState={{ disabled: pending || !input.trim() }}
           style={{
             backgroundColor: colors.amber, borderRadius: 24, width: 46, height: 46,
             alignItems: 'center', justifyContent: 'center',
+            opacity: pending || !input.trim() ? 0.4 : 1,
           }}
         >
-          <Text style={{ color: colors.amberInk, fontSize: 17, fontFamily: font.semibold }}>↑</Text>
+          {pending
+            ? <ActivityIndicator color={colors.amberInk} size="small" />
+            : <Text style={{ color: colors.amberInk, fontSize: 17, fontFamily: font.semibold }}>↑</Text>}
         </Pressable>
       </View>
     </KeyboardAvoidingView>

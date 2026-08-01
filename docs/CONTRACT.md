@@ -15,6 +15,17 @@
 > query, top_k=5)` — Chroma + Gemini embedding ile anlamca benzer tercihleri
 > getirir; katman yoksa SQLite kelime eşleşmesine düşer. `read_memory` /
 > `write_memory` imzaları DEĞİŞMEDİ; mevcut şemalara dokunulmadı. Geriye uyumlu.
+> **v1.5 (26 Temmuz 2026, S3 son cila):** İki EKLEME, mevcut alanlar DEĞİŞMEDİ.
+> (1) `HouseholdProfile.custom_tariff: CustomTariff | None` — kullanıcının kendi
+> faturasındaki birim fiyatlar (`single` / `day` / `peak` / `night` / `sell`,
+> TL/kWh). `get_tariff` opsiyonel `custom` parametresi aldı; **boş bırakılan her
+> alan EPDK tablosundan devam eder**, bu yüzden kısmi giriş geçerlidir. Fiyat
+> önceliği: harici fiyat vektörü (araştırma kancası) → kullanıcı fiyatı → EPDK
+> tablosu. Kullanıcı fiyatı devredeyse `Tariff.source` `user-defined-*` olur.
+> (2) Davranış düzeltmesi: batarya artık cihazlar gibi **bitişik segment başına
+> bir `PlanItem`** döner. Önceden `min..max` tek blok yazılıyordu; tek zamanlı
+> tarifede deşarj saatleri güne yayıldığı için bu "00:00-24:00 deşarj" gibi
+> fiziksel olarak imkânsız ve şarj penceresiyle çakışan bir kalem üretiyordu.
 > **v1.4 (9 Temmuz 2026, S2-6):** Davranış eki, şema DEĞİŞMEDİ: `optimize`
 > artık `Device.power_kw`'yi fiziksel kısıt sayar (efektif süre ≥ kwh/power_kw)
 > ve `Device.flexibility="interruptible"` cihazları (EV şarjı, pompa) kesintili
@@ -31,7 +42,7 @@ Agent bu tool'ları **kendi kararıyla, kendi sırasıyla** çağırır — elle
 | `get_weather(lat, lon, date)` | koordinat, gün | saatlik ışınım/sıcaklık/bulutluluk (`Weather`) | YZ | ✅ canlı (Open-Meteo) |
 | `forecast_production(weather, panel_kw)` | hava + panel kapasitesi | saatlik kWh üretim (`ProductionForecast`) | **VB** | ✅ v0-physical — VB, v1-lightgbm ile değiştirir |
 | `forecast_consumption(profile, date)` | profil + gün | saatlik kWh baz talep (`ConsumptionForecast`) | **VB** | ✅ v0-profile — VB, v1 ile değiştirir |
-| `get_tariff(date, user_type, tariff_type, monthly_kwh)` | gün, kullanıcı/tarife tipi | saatlik fiyat + **mahsup satış fiyatı** (`Tariff`) | YZ | ✅ EPDK sabit tablo |
+| `get_tariff(date, user_type, tariff_type, monthly_kwh, custom)` | gün, kullanıcı/tarife tipi, opsiyonel kullanıcı fiyatları | saatlik fiyat + **mahsup satış fiyatı** (`Tariff`) | YZ | ✅ EPDK sabit tablo + kullanıcı override'ı (v1.5) |
 | `optimize(production, consumption, tariff, profile, blocked_hours)` | hepsi | cihaz/batarya planı (`DailyPlan`) | DS+YZ | ✅ deterministik motor |
 | `read_memory(user_id)` / `write_memory(user_id, text)` | kullanıcı id | tercih + geçmiş | YZ | ✅ SQLite (+ Chroma'ya çift yazım) |
 | `search_preferences(user_id, query, top_k)` | kullanıcı id + serbest metin | anlamca benzer tercihler (`text/source/date/similarity`) | YZ | ✅ Chroma + Gemini embedding; katman yoksa kelime eşleşmesi |

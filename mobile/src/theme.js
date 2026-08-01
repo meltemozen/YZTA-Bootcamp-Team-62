@@ -86,3 +86,53 @@ export const primaryButtonText = {
   fontFamily: font.semibold,
   fontSize: 16,
 };
+
+export const inputField = {
+  borderWidth: 1,
+  borderColor: colors.border,
+  borderRadius: 12,
+  padding: 14,
+  fontSize: 15,
+  backgroundColor: colors.input,
+  color: colors.ink,
+  fontFamily: font.body,
+};
+
+export const secondaryButton = {
+  borderRadius: 14,
+  paddingVertical: 14,
+  paddingHorizontal: 28,
+  alignItems: 'center',
+  borderWidth: 1.5,
+  borderColor: colors.border,
+  backgroundColor: 'transparent',
+};
+
+export const secondaryButtonText = {
+  color: colors.ink,
+  fontFamily: font.medium,
+  fontSize: 15,
+};
+
+export const dangerButton = {
+  borderRadius: 14,
+  paddingVertical: 14,
+  paddingHorizontal: 28,
+  alignItems: 'center',
+  backgroundColor: 'rgba(242,109,109,0.12)',
+  borderWidth: 1,
+  borderColor: 'rgba(242,109,109,0.25)',
+};
+
+export const dangerButtonText = {
+  color: colors.critical,
+  fontFamily: font.semibold,
+  fontSize: 15,
+};
+
+export const linkText = {
+  color: colors.amber,
+  fontFamily: font.medium,
+  fontSize: 14,
+};
+

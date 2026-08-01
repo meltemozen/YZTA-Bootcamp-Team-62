@@ -4,33 +4,55 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View,
+  Pressable, RefreshControl, ScrollView, Text, View,
 } from 'react-native';
 import { api, rangeTL, WEATHER_SOURCE_NOTE } from '../api';
 import DailyChart from '../components/DailyChart';
 import { SunIcon, LeafIcon } from '../components/Icons';
 import { ScreenHeader } from '../components/Brand';
 import PlanCard from '../components/PlanCard';
+import {
+  DataQualityNotice, EmptyState, ErrorState, LoadingState,
+} from '../components/States';
 import { spacing, font, card, colors, text } from '../theme';
 
 // "v1-lightgbm (2026-07-15)" — omits the date when a model has none (the
 // hardcoded v0 physical/profile fallback has no training date).
+// Raw artifact ids (v1-lightgbm …) are engineering detail; the user gets a
+// plain-Turkish name. Unknown ids fall through unchanged rather than lying.
+const MODEL_LABELS = {
+  'v0-physical': 'fiziksel model',
+  'v0-profile': 'profil tahmini',
+  'v1-lightgbm': 'LightGBM v1',
+  'v1-weather-regressor': 'hava tabanlı regresyon v1',
+  'v1-generic-load-shape': 'yük şekli v1',
+  'v2-catboost-calibrated': 'CatBoost kalibreli v2',
+};
+const modelLabel = (id) => MODEL_LABELS[id] || id;
+
 function formatModel(version, trainedAt) {
-  return trainedAt ? `${version} (${trainedAt})` : version;
+  const label = modelLabel(version);
+  return trainedAt ? `${label} (${trainedAt})` : label;
 }
 
 function DaySelector({ day, setDay }) {
   return (
-    <View style={{
-      flexDirection: 'row', backgroundColor: colors.input, borderRadius: 20,
-      borderWidth: 1, borderColor: colors.border, padding: 3,
-    }}>
+    <View
+      accessibilityRole="tablist"
+      style={{
+        flexDirection: 'row', backgroundColor: colors.input, borderRadius: 20,
+        borderWidth: 1, borderColor: colors.border, padding: 3,
+      }}
+    >
       {[['today', 'Bugün'], ['tomorrow', 'Yarın']].map(([value, label]) => (
         <Pressable
           key={value}
           onPress={() => setDay(value)}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: day === value }}
+          accessibilityLabel={`${label} planı`}
           style={{
-            paddingVertical: 6, paddingHorizontal: 16, borderRadius: 17,
+            paddingVertical: 9, paddingHorizontal: 16, borderRadius: 17,
             backgroundColor: day === value ? colors.amber : 'transparent',
           }}
         >
@@ -46,7 +68,7 @@ function DaySelector({ day, setDay }) {
   );
 }
 
-export default function Today({ userId }) {
+export default function Today({ userId, refreshKey = 0 }) {
   const [day, setDay] = useState('today');
   const [plan, setPlan] = useState(null);
   const [alerts, setAlerts] = useState([]);
@@ -68,7 +90,7 @@ export default function Today({ userId }) {
     } finally {
       setLoading(false);
     }
-  }, [userId, day]);
+  }, [userId, day, refreshKey]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -83,14 +105,16 @@ export default function Today({ userId }) {
       <ScreenHeader title="Enerji Planın" right={<DaySelector day={day} setDay={setDay} />} />
 
       {error && (
-        <View style={[card, { borderColor: colors.critical }]}>
-          <Text style={[text.body, { color: colors.critical }]}>
-            Sunucuya ulaşılamadı. Ayarlar sekmesinden API adresini kontrol et.
-          </Text>
-        </View>
+        <ErrorState
+          message={plan
+            ? 'Plan yenilenemedi, aşağıdakiler en son alınan veriler.'
+            : 'Sunucudan plan alınamadı.'}
+          hint={`Ayarlar sekmesinden sunucu adresini kontrol edebilirsin. (${error})`}
+          onRetry={load}
+        />
       )}
 
-      {loading && !plan && <ActivityIndicator style={{ marginTop: 48 }} color={colors.amber} />}
+      {loading && !plan && <LoadingState variant="plan" label="Planın hazırlanıyor…" />}
 
       {plan && (
         <>
@@ -130,19 +154,37 @@ export default function Today({ userId }) {
               <Text style={{
                 fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.55)', marginTop: 5,
               }}>
-                Model: {formatModel(plan.chart_data.models.production, plan.chart_data.models.production_trained_at)}
-                {' · '}
+                Üretim: {formatModel(plan.chart_data.models.production, plan.chart_data.models.production_trained_at)}
+                {' · '}Tüketim:{' '}
                 {formatModel(plan.chart_data.models.consumption, plan.chart_data.models.consumption_trained_at)}
+                {plan.chart_data.models.optimizer ? ` · Optimizer: ${plan.chart_data.models.optimizer}` : ''}
               </Text>
             )}
-            {WEATHER_SOURCE_NOTE[plan.chart_data.weather_source] && (
-              <Text style={{
-                fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.75)', marginTop: 3,
-              }}>
-                {WEATHER_SOURCE_NOTE[plan.chart_data.weather_source]}
-              </Text>
+            {plan.weather_source && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 }}>
+                <View style={{
+                  paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+                  backgroundColor: plan.weather_source === 'live' ? 'rgba(47,191,102,0.25)'
+                    : plan.weather_source === 'cached' ? 'rgba(247,179,43,0.25)'
+                    : 'rgba(242,109,109,0.25)',
+                }}>
+                  <Text style={{
+                    fontFamily: font.semibold, fontSize: 9.5, letterSpacing: 0.5,
+                    textTransform: 'uppercase',
+                    color: plan.weather_source === 'live' ? '#1a6b35'
+                      : plan.weather_source === 'cached' ? '#6b4400'
+                      : '#6b1a1a',
+                  }}>
+                    Hava: {plan.weather_source === 'live' ? 'Canlı'
+                      : plan.weather_source === 'cached' ? 'Önbellek'
+                      : 'Sentetik'}
+                  </Text>
+                </View>
+              </View>
             )}
           </LinearGradient>
+
+          <DataQualityNotice weatherSource={plan.chart_data.data_quality?.weather_source} />
 
           {/* Chart */}
           <View style={card}>
@@ -161,12 +203,11 @@ export default function Today({ userId }) {
             </Text>
           )}
           {plan.items.length === 0 ? (
-            <View style={card}>
-              <Text style={text.body}>
-                Planlanacak esnek cihaz yok. Ayarlar'dan çamaşır makinesi gibi cihazlar ekle —
-                Wattra onları en ucuz saate yerleştirsin.
-              </Text>
-            </View>
+            <EmptyState
+              title="Bugün kaydırılacak bir şey yok"
+              message={'Zamanı esnek bir cihazın kayıtlı değil. Çamaşır makinesi, bulaşık '
+                + 'makinesi veya EV şarjı eklersen Wattra bunları en ucuz saate yerleştirir.'}
+            />
           ) : (
             plan.items.map((item, i) => (
               <PlanCard key={i} item={item} userId={userId} date={plan.date} />

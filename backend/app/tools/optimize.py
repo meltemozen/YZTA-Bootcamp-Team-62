@@ -166,7 +166,8 @@ def _reason(start: int, production: list[float], consumption: list[float],
 def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
              tariff: Tariff, profile: HouseholdProfile,
              blocked_hours: set[int] | None = None,
-             current_hour: int | None = None) -> DailyPlan:
+             current_hour: int | None = None,
+             weather_source: str = "live") -> DailyPlan:
     blocked = (blocked_hours or set()) | _runtime_blocked_hours(production.date, current_hour)
     price, sell = tariff.hourly_price, tariff.hourly_sell_price
     net = [c - p for c, p in zip(consumption.hourly_kwh, production.hourly_kwh)]
@@ -303,16 +304,29 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
 
         if charge_window and discharge_window:
             u = config.SAVING_UNCERTAINTY
-            items.append(PlanItem(
-                type="battery_charge", name="Battery",
-                start_h=min(charge_window), end_h=max(charge_window) + 1,
-                saving_tl_min=0, saving_tl_max=0, reason_code="solar_surplus"))
-            items.append(PlanItem(
-                type="battery_discharge", name="Battery",
-                start_h=min(discharge_window), end_h=max(discharge_window) + 1,
-                saving_tl_min=round(max(gain, 0) * (1 - u), 2),
-                saving_tl_max=round(max(gain, 0) * (1 + u), 2),
-                reason_code="avoid_peak"))
+            # One item per CONTIGUOUS run, like devices. min..max would be a lie
+            # whenever the hours are scattered — on a single-rate tariff every
+            # hour costs the same, so discharge spreads across the day and a
+            # naive min..max renders as "00:00-24:00", overlapping the charge
+            # window and telling the user to charge and discharge at once.
+            charge_runs = _segments(tuple(sorted(charge_window)))
+            discharge_runs = _segments(tuple(sorted(discharge_window)))
+            for run_no, (start, end) in enumerate(charge_runs, start=1):
+                items.append(PlanItem(
+                    type="battery_charge",
+                    name="Battery" if len(charge_runs) == 1 else f"Battery ({run_no}. bölüm)",
+                    start_h=start, end_h=end % 24,
+                    saving_tl_min=0, saving_tl_max=0, reason_code="solar_surplus"))
+            total_hours = len(discharge_window)
+            for run_no, (start, end) in enumerate(discharge_runs, start=1):
+                share = (end - start) / total_hours
+                items.append(PlanItem(
+                    type="battery_discharge",
+                    name="Battery" if len(discharge_runs) == 1 else f"Battery ({run_no}. bölüm)",
+                    start_h=start, end_h=end % 24,
+                    saving_tl_min=round(max(gain, 0) * share * (1 - u), 2),
+                    saving_tl_max=round(max(gain, 0) * share * (1 + u), 2),
+                    reason_code="avoid_peak"))
 
     # --- Summary metrics ---
     self_consumed = sum(min(p, p + n) if n < 0 else p
@@ -328,6 +342,7 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
         co2_saved_kg=co2,
         self_consumption_ratio=self_ratio,
         optimizer_version=_OPTIMIZER_VERSION,
+        weather_source=weather_source,
         chart_data={
             "production": production.hourly_kwh,
             "consumption": consumption.hourly_kwh,
@@ -338,8 +353,9 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
                 "production_trained_at": production.trained_at,
                 "consumption": consumption.model_version,
                 "consumption_trained_at": consumption.trained_at,
+                "optimizer": config.OPTIMIZER_VERSION,
             },
-            "weather_source": production.weather_source,
+            "weather_source": weather_source,
             "optimization": {
                 "blocked_hours": sorted(blocked),
                 "current_hour": current_hour if current_hour is not None

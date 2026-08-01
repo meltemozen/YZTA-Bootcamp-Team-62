@@ -17,7 +17,9 @@ file is updated and the date is recorded in docs/METHOD.md.
 * Residential rooftop PV net-metering upper limit is 10 kW.
 """
 
+import logging as _log
 import os
+import secrets as _secrets
 
 from dotenv import load_dotenv
 
@@ -30,6 +32,16 @@ OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "0").lower() in ("1", "true", "yes"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
 OLLAMA_TIMEOUT_S = float(os.getenv("OLLAMA_TIMEOUT_S", "45"))
+
+# --- JWT Authentication ---
+_jwt_env = os.getenv("JWT_SECRET_KEY", "")
+if not _jwt_env:
+    _log.getLogger("wattra.config").warning(
+        "JWT_SECRET_KEY not set — using a random key (tokens won't survive restarts)")
+JWT_SECRET_KEY: str = _jwt_env or _secrets.token_urlsafe(48)
+JWT_ALGORITHM: str = "HS256"
+JWT_ACCESS_TOKEN_EXPIRE_HOURS: int = 24
+JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
 # --- Database ---
 DB_PATH = os.getenv("WATTRA_DB", os.path.join(os.path.dirname(__file__), "..", "wattra.db"))
@@ -98,3 +110,8 @@ CAR_KG_CO2_KM = 0.17
 # Because the consumption profile relies on bill calibration, TL savings are
 # shown to the user as a range rather than a single figure.
 SAVING_UNCERTAINTY = 0.25  # ±25%
+
+# --- Model and Optimizer Versions ---
+# Centralized version strings for transparency. These are exposed in the API
+# and mobile UI so users can see which models generated their plan.
+OPTIMIZER_VERSION = "v1-greedy-coord-descent"
