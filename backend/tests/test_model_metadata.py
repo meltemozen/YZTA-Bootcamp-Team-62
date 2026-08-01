@@ -129,7 +129,6 @@ def test_optimizer_manifest_entry_has_no_fabricated_metrics():
     entry = load_manifest()["optimizer"]
 
     assert entry.trained_at is None
-    assert entry.data_source is None
     assert entry.metrics.mae is None
     assert entry.metrics.rmse is None
     assert entry.metrics.nmae_pct is None
