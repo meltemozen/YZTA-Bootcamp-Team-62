@@ -58,7 +58,8 @@ def notifications(profile: HouseholdProfile) -> list[dict]:
         })
 
     tariff = get_tariff(tomorrow, profile.user_type, profile.tariff_type,
-                        monthly_kwh=profile.monthly_bill_kwh)
+                        monthly_kwh=profile.monthly_bill_kwh,
+                        custom=profile.custom_tariff)
     # 4) Hourly net-metering awareness (single-rate: a once-a-month hint)
     if profile.tariff_type == "single" and production.total_kwh > consumption.total_kwh * 1.2:
         gap = tariff.hourly_price[12] - tariff.hourly_sell_price[12]

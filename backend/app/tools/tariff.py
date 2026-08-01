@@ -16,7 +16,7 @@ import json
 from datetime import date
 
 from .. import config
-from ..schemas import Tariff
+from ..schemas import CustomTariff, Tariff
 
 
 def time_band(hour: int) -> str:
@@ -55,7 +55,8 @@ def _external_price_vector(day: date) -> Tariff | None:
 
 def get_tariff(day: date, user_type: str = "home",
                tariff_type: str = "single",
-               monthly_kwh: float | None = None) -> Tariff:
+               monthly_kwh: float | None = None,
+               custom: CustomTariff | None = None) -> Tariff:
     external = _external_price_vector(day)
     if external:
         return external
@@ -74,13 +75,34 @@ def get_tariff(day: date, user_type: str = "home",
         prices = [unit] * 24
         bands = ["flat"] * 24
 
-    sell = [round(p * config.NETMETER_SELL_RATIO, 4) for p in prices]
+    # The user's own bill beats our snapshot of the EPDK table, per band and
+    # only where they actually supplied a number.
+    overrides = _price_overrides(custom, tariff_type)
+    if overrides:
+        prices = [overrides.get(bands[h], prices[h]) for h in range(24)]
 
+    if custom and custom.sell:
+        sell = [custom.sell] * 24
+    else:
+        sell = [round(p * config.NETMETER_SELL_RATIO, 4) for p in prices]
+
+    user_priced = bool(overrides) or bool(custom and custom.sell)
     return Tariff(
         date=day,
         hourly_price=prices,
         hourly_sell_price=sell,
         avg_sell_price=round(sum(sell) / 24, 4),  # back-compat: average
         band=bands,
-        source=f"turkey-regulated-{tariff_type}",
+        source=f"{'user-defined' if user_priced else 'turkey-regulated'}-{tariff_type}",
     )
+
+
+def _price_overrides(custom: CustomTariff | None, tariff_type: str) -> dict[str, float]:
+    """Band → user price, for the bands the user actually filled in."""
+    if custom is None:
+        return {}
+    if tariff_type == "three_zone":
+        pairs = {"day": custom.day, "peak": custom.peak, "night": custom.night}
+    else:
+        pairs = {"flat": custom.single}
+    return {band: price for band, price in pairs.items() if price}

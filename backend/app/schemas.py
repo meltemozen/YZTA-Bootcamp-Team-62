@@ -29,6 +29,22 @@ class Device(BaseModel):
     source: str | None = Field(default=None, description="Assumption/source note")
 
 
+class CustomTariff(BaseModel):
+    """The user's OWN unit prices, read off their bill (TL/kWh, taxes included).
+
+    The built-in EPDK table is a snapshot, not a live feed, so a user whose
+    bill differs can override it here. Any field left empty falls back to the
+    regulated table, which keeps the form forgiving: a user who only knows
+    their daytime price can still enter just that.
+    """
+    single: float | None = Field(default=None, gt=0, description="Flat unit price")
+    day: float | None = Field(default=None, gt=0, description="Three-zone 06-17")
+    peak: float | None = Field(default=None, gt=0, description="Three-zone 17-22")
+    night: float | None = Field(default=None, gt=0, description="Three-zone 22-06")
+    sell: float | None = Field(default=None, gt=0,
+                               description="Net-metering sell price if the user knows it")
+
+
 class HouseholdProfile(BaseModel):
     user_type: Literal["home", "business"] = "home"
     city: str = "İzmir"
@@ -39,6 +55,8 @@ class HouseholdProfile(BaseModel):
     battery_power_kw: float = Field(default=0, ge=0, description="Max charge/discharge power")
     monthly_bill_kwh: float = Field(gt=0, description="Last bill monthly consumption — calibration input")
     tariff_type: Literal["single", "three_zone"] = "single"
+    custom_tariff: CustomTariff | None = Field(
+        default=None, description="User's own prices; overrides the built-in EPDK table")
     devices: list[Device] = []
     work_start: int = Field(default=8, ge=0, le=23, description="For businesses")
     work_end: int = Field(default=19, ge=0, le=23)
@@ -187,3 +205,49 @@ class WeatherCheck(BaseModel):
     production_model_version: str
     estimated_production_kwh: float
     weather_source: str = Field(default="live", description="'live' | 'cached' | 'synthetic'")
+
+# --------------------------------------------------------------------------
+# Authentication schemas (API-layer only — does NOT affect tool contracts)
+# --------------------------------------------------------------------------
+
+class AuthRegisterRequest(BaseModel):
+    email: str = Field(pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$", description="User e-mail address")
+    password: str = Field(min_length=6, description="Min 6 characters")
+    name: str = Field(default="", description="Display name")
+    profile: HouseholdProfile
+
+
+class AuthLoginRequest(BaseModel):
+    email: str = Field(pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user_id: int
+    name: str
+    message: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class UserProfileResponse(BaseModel):
+    user_id: int
+    email: str
+    name: str
+    profile: HouseholdProfile
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str | None = None
+    email: str | None = Field(default=None, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    profile: HouseholdProfile | None = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)

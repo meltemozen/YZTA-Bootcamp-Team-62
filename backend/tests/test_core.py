@@ -9,7 +9,7 @@ from datetime import date, timedelta
 import pytest
 
 from app import config
-from app.schemas import Device, HouseholdProfile, Weather
+from app.schemas import CustomTariff, Device, HouseholdProfile, Weather
 from app.tools.consumption import forecast_consumption
 from app.tools.optimize import optimize
 from app.tools.production import forecast_production
@@ -331,3 +331,139 @@ def test_device_catalog_has_ev_and_interruptible_metadata():
     # Every catalog row must satisfy the locked Device schema.
     for row in catalog:
         Device(**row)
+
+
+# --- S3: user-defined tariff (the app's prices are a snapshot, not a feed) ---
+
+def test_custom_single_price_overrides_regulated_table():
+    regulated = get_tariff(DAY, "home", "single", monthly_kwh=300)
+    custom = get_tariff(DAY, "home", "single", monthly_kwh=300,
+                        custom=CustomTariff(single=4.10))
+    assert custom.hourly_price == [4.10] * 24
+    assert custom.hourly_price[0] != regulated.hourly_price[0]
+    assert custom.source == "user-defined-single"
+    # Sell price still derives from the user's own buy price.
+    assert custom.hourly_sell_price[0] == round(4.10 * config.NETMETER_SELL_RATIO, 4)
+
+
+def test_partial_custom_three_zone_keeps_regulated_for_blank_bands():
+    """A user who only knows their peak price must not lose the other bands."""
+    regulated = get_tariff(DAY, "home", "three_zone")
+    custom = get_tariff(DAY, "home", "three_zone", custom=CustomTariff(peak=9.5))
+    peak_hour = next(h for h in range(24) if custom.band[h] == "peak")
+    day_hour = next(h for h in range(24) if custom.band[h] == "day")
+    assert custom.hourly_price[peak_hour] == 9.5
+    assert custom.hourly_price[day_hour] == regulated.hourly_price[day_hour]
+
+
+def test_custom_sell_price_is_used_verbatim():
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=300,
+                        custom=CustomTariff(single=4.0, sell=3.10))
+    assert tariff.hourly_sell_price == [3.10] * 24
+    assert tariff.avg_sell_price == 3.10
+
+
+def test_empty_custom_tariff_falls_back_to_regulated():
+    regulated = get_tariff(DAY, "home", "single", monthly_kwh=300)
+    empty = get_tariff(DAY, "home", "single", monthly_kwh=300, custom=CustomTariff())
+    assert empty.hourly_price == regulated.hourly_price
+    assert empty.source == regulated.source
+
+
+def test_custom_tariff_changes_the_plan_economics():
+    """The point of the feature: the user's own price drives the saving."""
+    profile = make_profile(tariff_type="three_zone")
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+
+    cheap = optimize(production, consumption,
+                     get_tariff(DAY, "home", "three_zone", custom=CustomTariff(peak=6.0)),
+                     profile)
+    pricey = optimize(production, consumption,
+                      get_tariff(DAY, "home", "three_zone", custom=CustomTariff(peak=15.0)),
+                      profile)
+    assert pricey.total_saving_tl_max > cheap.total_saving_tl_max
+
+
+# --- S3: battery dispatch is reported as real windows, not min..max ---
+
+def test_battery_windows_are_contiguous_and_do_not_overlap():
+    """On a single-rate tariff every hour costs the same, so discharge hours
+    scatter across the day. Reporting min..max as one block claimed a 24-hour
+    discharge that overlapped the charge window — physically impossible."""
+    profile = make_profile(battery_kwh=10.0, battery_power_kw=5.0, tariff_type="single")
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=profile.monthly_bill_kwh)
+
+    plan = optimize(production, consumption, tariff, profile)
+    charge_hours, discharge_hours = set(), set()
+    for item in plan.items:
+        span = range(item.start_h, item.end_h if item.end_h > item.start_h else item.end_h + 24)
+        hours = {h % 24 for h in span}
+        if item.type == "battery_charge":
+            charge_hours |= hours
+        elif item.type == "battery_discharge":
+            discharge_hours |= hours
+
+    assert charge_hours and discharge_hours
+    assert not (charge_hours & discharge_hours), \
+        "the battery cannot charge and discharge in the same hour"
+    assert len(discharge_hours) < 24, "a 24-hour discharge window is not a real plan"
+
+
+def test_battery_saving_is_split_across_reported_segments():
+    profile = make_profile(battery_kwh=10.0, battery_power_kw=5.0, tariff_type="single")
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=profile.monthly_bill_kwh)
+
+    plan = optimize(production, consumption, tariff, profile)
+    discharge = [i for i in plan.items if i.type == "battery_discharge"]
+    assert discharge
+    if len(discharge) > 1:
+        # Split items must be labelled so the UI can show them as one dispatch.
+        assert all("bölüm" in i.name for i in discharge)
+    assert all(i.saving_tl_min >= 0 for i in discharge)
+
+
+# --- S3: multiple flexible devices competing for the same solar window ---
+
+def test_multiple_devices_do_not_all_stack_on_one_hour():
+    """Three shiftable loads + limited surplus: the optimizer must spread them
+    rather than pile every device onto the single cheapest hour."""
+    devices = [
+        Device(name="Çamaşır makinesi", kwh=1.0, duration_h=2, earliest=0, latest=23),
+        Device(name="Bulaşık makinesi", kwh=1.2, duration_h=2, earliest=0, latest=23),
+        Device(name="Kurutma makinesi", kwh=2.5, duration_h=2, earliest=0, latest=23),
+    ]
+    profile = make_profile(devices=devices)
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=profile.monthly_bill_kwh)
+
+    plan = optimize(production, consumption, tariff, profile)
+    starts = [i.start_h for i in plan.items if i.type == "device"]
+    assert len(starts) == 3
+    assert len(set(starts)) > 1, "devices must not all start at the same hour"
+
+
+def test_every_device_stays_inside_its_own_window():
+    devices = [
+        Device(name="Çamaşır makinesi", kwh=1.0, duration_h=2, earliest=9, latest=14),
+        Device(name="Termosifon", kwh=3.0, duration_h=3, earliest=0, latest=6),
+    ]
+    profile = make_profile(devices=devices)
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "three_zone")
+
+    plan = optimize(production, consumption, tariff, profile)
+    limits = {d.name: (d.earliest, d.latest) for d in devices}
+    for item in plan.items:
+        if item.type != "device":
+            continue
+        earliest, latest = limits[item.name.split(" (")[0]]
+        assert item.start_h >= earliest
+        end = item.end_h if item.end_h > item.start_h else item.end_h + 24
+        assert end <= latest + 1

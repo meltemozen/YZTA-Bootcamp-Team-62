@@ -1,7 +1,14 @@
 """Wattra API — FastAPI application.
 
 Endpoints map one-to-one to the mobile app screens:
-  POST /api/register        → Onboarding
+  POST /api/auth/register   → Auth registration (email + password + profile)
+  POST /api/auth/login      → Login → access + refresh tokens
+  POST /api/auth/refresh    → Refresh access token
+  GET  /api/auth/me         → Authenticated user profile
+  PUT  /api/auth/me         → Update name / household profile
+  PUT  /api/auth/password   → Change password
+
+  POST /api/register        → Onboarding (legacy, backward-compatible)
   GET  /api/plan/{id}       → Today screen (fast plan, no agent)
   POST /api/assistant       → Assistant chat (Gemini agent / fallback)
   GET  /api/report/{id}     → Monthly report (counterfactual + CO2)
@@ -13,25 +20,42 @@ Endpoints map one-to-one to the mobile app screens:
 import json
 import logging
 import os
+import sqlite3
 import time
 from datetime import date, timedelta
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import config, db
 from .agent import assistant_reply
 from .agent.context import ToolContext
+from .auth import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    get_current_user_id,
+    hash_password,
+    require_same_user,
+    verify_password,
+)
 from .schemas import (
     AssistantRequest,
     AssistantResponse,
+    AuthLoginRequest,
+    AuthRegisterRequest,
     DailyPlan,
     Feedback,
     HouseholdProfile,
     MonthlyReport,
+    PasswordChangeRequest,
+    ProfileUpdateRequest,
+    RefreshRequest,
     RegisterRequest,
     RegisterResponse,
+    TokenResponse,
+    UserProfileResponse,
     WeatherCheck,
 )
 from .services.notifications import notifications
@@ -39,7 +63,7 @@ from .services.report import monthly_report
 from .tools.production import forecast_production
 from .tools.weather import get_weather
 
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -83,6 +107,10 @@ async def unhandled_exception(request: Request, exc: Exception):
 db.init_db()
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Health
+# ──────────────────────────────────────────────────────────────────────────────
+
 @app.get("/api/health")
 def health():
     agent = "gemini" if config.GEMINI_API_KEY else "ollama" if config.OLLAMA_ENABLED else "fallback"
@@ -106,7 +134,133 @@ def model_versions():
         "manifest": manifest,
     }
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Authentication endpoints
+# ──────────────────────────────────────────────────────────────────────────────
 
+@app.post("/api/auth/register", response_model=TokenResponse)
+def auth_register(req: AuthRegisterRequest):
+    """Create a new account with e-mail + password + household profile."""
+    if db.get_user_by_email(req.email):
+        raise HTTPException(409, "Bu e-posta adresi zaten kayıtlı")
+    try:
+        user_id = db.create_auth_user(
+            email=req.email,
+            password_hash=hash_password(req.password),
+            name=req.name,
+            profile=req.profile,
+        )
+    except sqlite3.IntegrityError:
+        raise HTTPException(409, "Bu e-posta adresi zaten kayıtlı")
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+        user_id=user_id,
+        name=req.name,
+        message=f"Hoş geldin! {req.profile.panel_kw} kW'lık sistemin için hazırım.",
+    )
+
+
+@app.post("/api/auth/login", response_model=TokenResponse)
+def auth_login(req: AuthLoginRequest):
+    """Log in with e-mail + password → access + refresh tokens."""
+    user = db.get_user_by_email(req.email)
+    if not user or not user.get("password_hash"):
+        raise HTTPException(401, "E-posta veya şifre hatalı")
+    if not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(401, "E-posta veya şifre hatalı")
+    return TokenResponse(
+        access_token=create_access_token(user["id"]),
+        refresh_token=create_refresh_token(user["id"]),
+        user_id=user["id"],
+        name=user.get("name", ""),
+        message="Tekrar hoş geldin!",
+    )
+
+
+@app.post("/api/auth/refresh", response_model=TokenResponse)
+def auth_refresh(req: RefreshRequest):
+    """Exchange a valid refresh token for a new access + refresh token pair."""
+    payload = decode_token(req.refresh_token)
+    if payload.get("type") != "refresh":
+        raise HTTPException(401, "Refresh token bekleniyor")
+    user_id = int(payload["sub"])
+    info = db.get_user_auth_info(user_id)
+    if not info:
+        raise HTTPException(404, "Kullanıcı bulunamadı")
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+        user_id=user_id,
+        name=info.get("name", ""),
+        message="Token yenilendi",
+    )
+
+
+@app.get("/api/auth/me", response_model=UserProfileResponse)
+def auth_me(uid: int = Depends(get_current_user_id)):
+    """Return the authenticated user's full profile."""
+    info = db.get_user_auth_info(uid)
+    if not info:
+        raise HTTPException(404, "Kullanıcı bulunamadı")
+    return UserProfileResponse(
+        user_id=info["id"],
+        email=info.get("email", ""),
+        name=info.get("name", ""),
+        profile=HouseholdProfile.model_validate_json(info["profile"]),
+    )
+
+
+@app.put("/api/auth/me", response_model=UserProfileResponse)
+def auth_update_me(req: ProfileUpdateRequest,
+                   uid: int = Depends(get_current_user_id)):
+    """Update the authenticated user's name, email, and/or household profile."""
+    info = db.get_user_auth_info(uid)
+    if not info:
+        raise HTTPException(404, "Kullanıcı bulunamadı")
+
+    if req.email is not None:
+        email = req.email.lower().strip()
+        if not email:
+            raise HTTPException(400, "Geçersiz e-posta adresi")
+        # Check if email is already used by someone else
+        existing = db.get_user_by_email(email)
+        if existing and existing["id"] != uid:
+            raise HTTPException(409, "Bu e-posta adresi zaten kullanılıyor")
+        db.update_user_email(uid, email)
+
+    if req.name is not None:
+        db.update_user_name(uid, req.name)
+    if req.profile is not None:
+        db.update_user(uid, req.profile)
+    # Return the refreshed profile
+    info = db.get_user_auth_info(uid)
+    return UserProfileResponse(
+        user_id=info["id"],
+        email=info.get("email", ""),
+        name=info.get("name", ""),
+        profile=HouseholdProfile.model_validate_json(info["profile"]),
+    )
+
+
+@app.put("/api/auth/password")
+def auth_change_password(req: PasswordChangeRequest,
+                         uid: int = Depends(get_current_user_id)):
+    """Change the authenticated user's password."""
+    info = db.get_user_auth_info(uid)
+    if not info:
+        raise HTTPException(404, "Kullanıcı bulunamadı")
+    # Verify current password
+    user = db.get_user_by_email(info.get("email", ""))
+    if not user or not verify_password(req.current_password, user["password_hash"]):
+        raise HTTPException(401, "Mevcut şifre hatalı")
+    db.update_user_password(uid, hash_password(req.new_password))
+    return {"status": "updated", "message": "Şifre başarıyla değiştirildi"}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Weather check (public — no auth required)
+# ──────────────────────────────────────────────────────────────────────────────
 @app.get("/api/weather-check", response_model=WeatherCheck)
 def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "today"):
     if day in ("today", "bugun", "bugün"):
@@ -137,6 +291,10 @@ def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "tod
     )
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Legacy register (backward-compatible — no auth)
+# ──────────────────────────────────────────────────────────────────────────────
+
 @app.post("/api/register", response_model=RegisterResponse)
 def register(req: RegisterRequest):
     user_id = db.add_user(req.profile)
@@ -144,8 +302,14 @@ def register(req: RegisterRequest):
                             message=f"Hoş geldin! {req.profile.panel_kw} kW'lık sistemin için hazırım.")
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Protected endpoints (require Bearer token)
+# ──────────────────────────────────────────────────────────────────────────────
+
 @app.put("/api/profile/{user_id}")
-def update_profile(user_id: int, profile: HouseholdProfile):
+def update_profile(user_id: int, profile: HouseholdProfile,
+                   token_uid: int = Depends(get_current_user_id)):
+    require_same_user(token_uid, user_id)
     if not db.get_user(user_id):
         raise HTTPException(404, "Kullanıcı bulunamadı")
     db.update_user(user_id, profile)
@@ -153,7 +317,9 @@ def update_profile(user_id: int, profile: HouseholdProfile):
 
 
 @app.get("/api/profile/{user_id}", response_model=HouseholdProfile)
-def get_profile(user_id: int):
+def get_profile(user_id: int,
+                token_uid: int = Depends(get_current_user_id)):
+    require_same_user(token_uid, user_id)
     profile = db.get_user(user_id)
     if not profile:
         raise HTTPException(404, "Kullanıcı bulunamadı")
@@ -161,9 +327,11 @@ def get_profile(user_id: int):
 
 
 @app.get("/api/plan/{user_id}", response_model=DailyPlan)
-def daily_plan(user_id: int, day: str = "today"):
+def daily_plan(user_id: int, day: str = "today",
+               token_uid: int = Depends(get_current_user_id)):
     """Today screen: deterministic plan without hitting the LLM (fast and free).
     The assistant chat runs through the agent instead."""
+    require_same_user(token_uid, user_id)
     profile = db.get_user(user_id)
     if not profile:
         raise HTTPException(404, "Kullanıcı bulunamadı")
@@ -173,7 +341,9 @@ def daily_plan(user_id: int, day: str = "today"):
 
 
 @app.post("/api/assistant", response_model=AssistantResponse)
-def assistant(req: AssistantRequest):
+def assistant(req: AssistantRequest,
+              token_uid: int = Depends(get_current_user_id)):
+    require_same_user(token_uid, req.user_id)
     profile = db.get_user(req.user_id)
     if not profile:
         raise HTTPException(404, "Kullanıcı bulunamadı")
@@ -181,13 +351,17 @@ def assistant(req: AssistantRequest):
 
 
 @app.post("/api/feedback")
-def feedback(fb: Feedback):
+def feedback(fb: Feedback,
+             token_uid: int = Depends(get_current_user_id)):
+    require_same_user(token_uid, fb.user_id)
     db.save_feedback(fb.user_id, fb.date, fb.item_name, fb.applied)
     return {"status": "saved"}
 
 
 @app.get("/api/report/{user_id}", response_model=MonthlyReport)
-def report(user_id: int, month: str | None = None):
+def report(user_id: int, month: str | None = None,
+           token_uid: int = Depends(get_current_user_id)):
+    require_same_user(token_uid, user_id)
     if not db.get_user(user_id):
         raise HTTPException(404, "Kullanıcı bulunamadı")
     month = month or date.today().strftime("%Y-%m")
@@ -195,7 +369,9 @@ def report(user_id: int, month: str | None = None):
 
 
 @app.get("/api/notifications/{user_id}")
-def notification_list(user_id: int):
+def notification_list(user_id: int,
+                      token_uid: int = Depends(get_current_user_id)):
+    require_same_user(token_uid, user_id)
     profile = db.get_user(user_id)
     if not profile:
         raise HTTPException(404, "Kullanıcı bulunamadı")
