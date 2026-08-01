@@ -86,7 +86,7 @@ function NumberInput({ label, value, setValue, unit, error, warning }) {
       </View>
       {error ? (
         <Text style={[text.small, { color: colors.critical, marginTop: 5 }]}
-              accessibilityRole="alert">
+          accessibilityRole="alert">
           {error}
         </Text>
       ) : null}
@@ -139,7 +139,7 @@ function validate({ panelKw, batteryKwh, bill, userType }) {
   return { errors, warnings };
 }
 
-export default function Onboarding({ onDone }) {
+export default function Onboarding({ userId, onDone }) {
   const [step, setStep] = useState(0);
   const [type, setType] = useState('home');
   const [city, setCity] = useState(CITIES[2]);
@@ -217,8 +217,8 @@ export default function Onboarding({ onDone }) {
     setSubmitting(true);
     setRegisterError(null);
     try {
-      const battery = parseFloat(batteryKwh.replace(',', '.'));
-      const resp = await api.register({
+      const battery = parseFloat(batteryKwh.replace(',', '.')) || 0;
+      const profile = {
         user_type: type,
         city: city.name,
         lat: city.lat,
@@ -229,9 +229,17 @@ export default function Onboarding({ onDone }) {
         monthly_bill_kwh: parseFloat(bill.replace(',', '.')),
         tariff_type: tariff,
         devices: selectedDevices,
-      });
-      await AsyncStorage.setItem('userId', String(resp.user_id));
-      onDone(resp.user_id);
+      };
+      // If userId is provided (auth flow), update the existing profile.
+      // Otherwise fall back to the legacy register flow.
+      if (userId) {
+        await api.authUpdateMe({ profile });
+        onDone(userId);
+      } else {
+        const resp = await api.register(profile);
+        await AsyncStorage.setItem('userId', String(resp.user_id));
+        onDone(resp.user_id);
+      }
     } catch (err) {
       setRegisterError(err.message);
     } finally {
@@ -280,7 +288,7 @@ export default function Onboarding({ onDone }) {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {CITIES.map((c) => (
           <Option key={c.name} small label={c.name}
-                  selected={city.name === c.name} onPress={() => setCity(c)} />
+            selected={city.name === c.name} onPress={() => setCity(c)} />
         ))}
       </View>
     </View>,
@@ -288,11 +296,11 @@ export default function Onboarding({ onDone }) {
     <View key="panel">
       <Text style={[text.title, { marginBottom: spacing.m }]}>Güneş sistemin</Text>
       <NumberInput label="Panel gücü (faturanda veya sözleşmende yazar)"
-                   value={panelKw} setValue={setPanelKw} unit="kW"
-                   error={errors.panelKw} warning={warnings.panelKw} />
+        value={panelKw} setValue={setPanelKw} unit="kW"
+        error={errors.panelKw} warning={warnings.panelKw} />
       <NumberInput label="Batarya kapasitesi (yoksa 0 bırak)"
-                   value={batteryKwh} setValue={setBatteryKwh} unit="kWh"
-                   error={errors.batteryKwh} warning={warnings.batteryKwh} />
+        value={batteryKwh} setValue={setBatteryKwh} unit="kWh"
+        error={errors.batteryKwh} warning={warnings.batteryKwh} />
       <Text style={text.small}>
         Bataryan olmasa da Wattra cihazlarını güneş saatlerine planlayarak tasarruf sağlar.
       </Text>
@@ -301,14 +309,14 @@ export default function Onboarding({ onDone }) {
     <View key="bill">
       <Text style={[text.title, { marginBottom: spacing.m }]}>Elektrik faturan</Text>
       <NumberInput label="Aylık tüketimin (faturada 'kWh' yazan satır)"
-                   value={bill} setValue={setBill} unit="kWh / ay"
-                   error={errors.bill} warning={warnings.bill} />
+        value={bill} setValue={setBill} unit="kWh / ay"
+        error={errors.bill} warning={warnings.bill} />
       <Text style={[text.body, { marginBottom: spacing.s }]}>Tarifen hangisi?</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         <Option label="Tek zamanlı (bilmiyorum)" selected={tariff === 'single'}
-                onPress={() => setTariff('single')} />
+          onPress={() => setTariff('single')} />
         <Option label="Üç zamanlı" selected={tariff === 'three_zone'}
-                onPress={() => setTariff('three_zone')} />
+          onPress={() => setTariff('three_zone')} />
       </View>
       <Text style={text.small}>
         Çoğu abonelik tek zamanlıdır. Üç zamanlıda gece ucuz, 17-22 arası pahalıdır —
@@ -337,7 +345,7 @@ export default function Onboarding({ onDone }) {
             .filter((c) => type === 'business' || !c.name.includes('işyeri'))
             .map((device) => (
               <Option key={device.name} small label={device.name}
-                      selected={isDeviceSelected(device.name)} onPress={() => toggleDevice(device)} />
+                selected={isDeviceSelected(device.name)} onPress={() => toggleDevice(device)} />
             ))}
         </View>
       )}
@@ -351,7 +359,7 @@ export default function Onboarding({ onDone }) {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.page }}
-                contentContainerStyle={{ padding: spacing.l, paddingTop: 64 }}>
+      contentContainerStyle={{ padding: spacing.l, paddingTop: 64 }}>
       {/* Brand hero */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 }}>
         <LogoMark size={40} />
@@ -385,11 +393,13 @@ export default function Onboarding({ onDone }) {
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Pressable disabled={step === 0} onPress={() => setStep(step - 1)}
-                   accessibilityRole="button"
-                   accessibilityLabel="Önceki adım"
-                   accessibilityState={{ disabled: step === 0 }}
-                   style={{ padding: 14, minHeight: TOUCH, justifyContent: 'center',
-                            opacity: step === 0 ? 0.25 : 1 }}>
+          accessibilityRole="button"
+          accessibilityLabel="Önceki adım"
+          accessibilityState={{ disabled: step === 0 }}
+          style={{
+            padding: 14, minHeight: TOUCH, justifyContent: 'center',
+            opacity: step === 0 ? 0.25 : 1
+          }}>
           <Text style={[text.body, { fontFamily: font.medium }]}>← Geri</Text>
         </Pressable>
         <Pressable

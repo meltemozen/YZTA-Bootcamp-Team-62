@@ -13,6 +13,9 @@ from .schemas import DailyPlan, HouseholdProfile
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE,
+    password_hash TEXT,
+    name TEXT DEFAULT '',
     profile TEXT NOT NULL,
     created TEXT NOT NULL
 );
@@ -40,6 +43,13 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 """
 
+# Migration helper: add auth columns to existing databases that lack them.
+_MIGRATIONS = [
+    "ALTER TABLE user ADD COLUMN email TEXT UNIQUE",
+    "ALTER TABLE user ADD COLUMN password_hash TEXT",
+    "ALTER TABLE user ADD COLUMN name TEXT DEFAULT ''",
+]
+
 
 @contextmanager
 def connect():
@@ -55,9 +65,15 @@ def connect():
 def init_db() -> None:
     with connect() as con:
         con.executescript(_SCHEMA)
+        # Run migrations for pre-auth databases (columns already exist → skip).
+        for sql in _MIGRATIONS:
+            try:
+                con.execute(sql)
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
 
-# --- User ---
+# --- User (legacy — backward-compatible with the old register flow) ---
 
 def add_user(profile: HouseholdProfile) -> int:
     with connect() as con:
@@ -78,6 +94,56 @@ def update_user(user_id: int, profile: HouseholdProfile) -> None:
     with connect() as con:
         con.execute("UPDATE user SET profile = ? WHERE id = ?",
                     (profile.model_dump_json(), user_id))
+
+
+# --- User (auth) ---
+
+def create_auth_user(email: str, password_hash: str, name: str,
+                     profile: HouseholdProfile) -> int:
+    """Register a new user with e-mail + hashed password."""
+    with connect() as con:
+        cur = con.execute(
+            "INSERT INTO user (email, password_hash, name, profile, created) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (email.lower().strip(), password_hash, name.strip(),
+             profile.model_dump_json(), datetime.now().isoformat()))
+        return cur.lastrowid
+
+
+def get_user_by_email(email: str) -> dict | None:
+    """Return ``{id, email, password_hash, name, profile}`` or *None*."""
+    with connect() as con:
+        row = con.execute(
+            "SELECT id, email, password_hash, name, profile FROM user "
+            "WHERE email = ?", (email.lower().strip(),)).fetchone()
+    return dict(row) if row else None
+
+
+def get_user_auth_info(user_id: int) -> dict | None:
+    """Return ``{id, email, name, profile}`` for the profile screen."""
+    with connect() as con:
+        row = con.execute(
+            "SELECT id, email, name, profile FROM user WHERE id = ?",
+            (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def update_user_name(user_id: int, name: str) -> None:
+    with connect() as con:
+        con.execute("UPDATE user SET name = ? WHERE id = ?",
+                    (name.strip(), user_id))
+
+
+def update_user_email(user_id: int, email: str) -> None:
+    with connect() as con:
+        con.execute("UPDATE user SET email = ? WHERE id = ?",
+                    (email.lower().strip(), user_id))
+
+
+def update_user_password(user_id: int, password_hash: str) -> None:
+    with connect() as con:
+        con.execute("UPDATE user SET password_hash = ? WHERE id = ?",
+                    (password_hash, user_id))
 
 
 # --- Memory (preferences) ---

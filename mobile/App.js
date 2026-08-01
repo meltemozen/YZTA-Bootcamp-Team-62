@@ -1,5 +1,5 @@
 // Wattra — root component.
-// Flow: if no saved user, show Onboarding; otherwise the 4-tab main app.
+// Auth flow: no token → Login/Register, token + no profile → Onboarding, otherwise → main app.
 // Screens are not shown until the brand fonts (Space Grotesk + Inter) load.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,12 +17,15 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { api } from './src/api';
+import { AuthProvider, useAuth } from './src/AuthContext';
 import { SettingsIcon, ChartIcon, BoltIcon, ChatIcon } from './src/components/Icons';
 import Assistant from './src/screens/Assistant';
+import Login from './src/screens/Login';
+import Onboarding from './src/screens/Onboarding';
+import Register from './src/screens/Register';
+import Report from './src/screens/Report';
 import Settings from './src/screens/Settings';
 import Today from './src/screens/Today';
-import Onboarding from './src/screens/Onboarding';
-import Report from './src/screens/Report';
 import { font, colors } from './src/theme';
 
 const Tab = createBottomTabNavigator();
@@ -66,30 +69,28 @@ async function scheduleNotifications(userId) {
   }
 }
 
-export default function App() {
-  const [fontsReady] = useFonts({
-    Inter_400Regular, Inter_500Medium, Inter_600SemiBold,
-    SpaceGrotesk_500Medium, SpaceGrotesk_700Bold,
-  });
-  const [userId, setUserId] = useState(null);
-  const [ready, setReady] = useState(false);
+function AppContent() {
+  const { user, loading, isAuthenticated } = useAuth();
+  const [authScreen, setAuthScreen] = useState('login'); // 'login' | 'register'
+  const [onboardingDone, setOnboardingDone] = useState(false);
   // Tabs stay mounted, so a profile edit in Settings would otherwise leave the
   // Today/Report screens showing a plan built from the OLD tariff or devices.
   // Bumping this counter re-runs their loaders.
   const [profileVersion, setProfileVersion] = useState(0);
 
+  // Check if user has completed onboarding (has a real profile stored)
   useEffect(() => {
-    AsyncStorage.getItem('userId').then((value) => {
-      if (value) setUserId(parseInt(value, 10));
-      setReady(true);
+    if (!isAuthenticated) { setOnboardingDone(false); return; }
+    AsyncStorage.getItem('onboarding_done_' + user.id).then((val) => {
+      setOnboardingDone(val === 'true');
     });
-  }, []);
+  }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
-    if (userId) scheduleNotifications(userId);
-  }, [userId]);
+    if (user && onboardingDone) scheduleNotifications(user.id);
+  }, [user, onboardingDone]);
 
-  if (!ready || !fontsReady) {
+  if (loading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.page }}>
         <ActivityIndicator color={colors.amber} size="large" />
@@ -97,15 +98,37 @@ export default function App() {
     );
   }
 
-  if (!userId) {
+  // Not authenticated → show Login or Register
+  if (!isAuthenticated) {
     return (
       <>
         <StatusBar style="light" />
-        <Onboarding onDone={setUserId} />
+        {authScreen === 'login' ? (
+          <Login onSwitchToRegister={() => setAuthScreen('register')} />
+        ) : (
+          <Register onSwitchToLogin={() => setAuthScreen('login')} />
+        )}
       </>
     );
   }
 
+  // Authenticated but hasn't completed onboarding
+  if (!onboardingDone) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <Onboarding
+          userId={user.id}
+          onDone={async () => {
+            await AsyncStorage.setItem('onboarding_done_' + user.id, 'true');
+            setOnboardingDone(true);
+          }}
+        />
+      </>
+    );
+  }
+
+  // Authenticated + onboarding complete → main app
   return (
     <NavigationContainer theme={NavTheme}>
       <StatusBar style="light" />
@@ -129,24 +152,44 @@ export default function App() {
         })}
       >
         <Tab.Screen name="Bugün">
-          {() => <Today userId={userId} refreshKey={profileVersion} />}
-        </Tab.Screen>
+          {() => <Today userId={user.id} refreshKey={profileVersion} />}
+        </Tab.Screen >
         <Tab.Screen name="Asistan">
-          {() => <Assistant userId={userId} />}
+          {() => <Assistant userId={user.id} />}
         </Tab.Screen>
         <Tab.Screen name="Rapor">
-          {() => <Report userId={userId} refreshKey={profileVersion} />}
+          {() => <Report userId={user.id} refreshKey={profileVersion} />}
         </Tab.Screen>
         <Tab.Screen name="Ayarlar">
           {() => (
             <Settings
-              userId={userId}
-              onReset={() => setUserId(null)}
+              userId={user.id}
               onProfileChange={() => setProfileVersion((v) => v + 1)}
             />
           )}
-        </Tab.Screen>
-      </Tab.Navigator>
-    </NavigationContainer>
+    </Tab.Screen>
+      </Tab.Navigator >
+    </NavigationContainer >
+  );
+}
+
+export default function App() {
+  const [fontsReady] = useFonts({
+    Inter_400Regular, Inter_500Medium, Inter_600SemiBold,
+    SpaceGrotesk_500Medium, SpaceGrotesk_700Bold,
+  });
+
+  if (!fontsReady) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.page }}>
+        <ActivityIndicator color={colors.amber} size="large" />
+      </View>
+    );
+  }
+
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
