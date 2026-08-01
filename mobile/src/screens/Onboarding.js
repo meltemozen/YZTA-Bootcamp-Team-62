@@ -79,7 +79,7 @@ function NumberInput({ label, value, setValue, unit }) {
   );
 }
 
-export default function Onboarding({ onDone }) {
+export default function Onboarding({ userId, onDone }) {
   const [step, setStep] = useState(0);
   const [type, setType] = useState('home');
   const [city, setCity] = useState(CITIES[2]);
@@ -143,7 +143,7 @@ export default function Onboarding({ onDone }) {
     setSubmitting(true);
     try {
       const battery = parseFloat(batteryKwh) || 0;
-      const resp = await api.register({
+      const profile = {
         user_type: type,
         city: city.name,
         lat: city.lat,
@@ -154,9 +154,17 @@ export default function Onboarding({ onDone }) {
         monthly_bill_kwh: parseFloat(bill) || 300,
         tariff_type: tariff,
         devices: selectedDevices,
-      });
-      await AsyncStorage.setItem('userId', String(resp.user_id));
-      onDone(resp.user_id);
+      };
+      // If userId is provided (auth flow), update the existing profile.
+      // Otherwise fall back to the legacy register flow.
+      if (userId) {
+        await api.authUpdateMe({ profile });
+        onDone(userId);
+      } else {
+        const resp = await api.register(profile);
+        await AsyncStorage.setItem('userId', String(resp.user_id));
+        onDone(resp.user_id);
+      }
     } catch (err) {
       alertUser(
         'Bağlantı sorunu',

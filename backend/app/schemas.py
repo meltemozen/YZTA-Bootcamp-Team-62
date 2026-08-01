@@ -182,3 +182,51 @@ class WeatherCheck(BaseModel):
     max_temp_c: float
     production_model_version: str
     estimated_production_kwh: float
+
+
+# --------------------------------------------------------------------------
+# Authentication schemas (API-layer only — does NOT affect tool contracts)
+# --------------------------------------------------------------------------
+
+class AuthRegisterRequest(BaseModel):
+    email: str = Field(pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$", description="User e-mail address")
+    password: str = Field(min_length=6, description="Min 6 characters")
+    name: str = Field(default="", description="Display name")
+    profile: HouseholdProfile
+
+
+class AuthLoginRequest(BaseModel):
+    email: str = Field(pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user_id: int
+    name: str
+    message: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class UserProfileResponse(BaseModel):
+    user_id: int
+    email: str
+    name: str
+    profile: HouseholdProfile
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str | None = None
+    email: str | None = Field(default=None, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    profile: HouseholdProfile | None = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)
+
