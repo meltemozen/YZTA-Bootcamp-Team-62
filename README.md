@@ -8,7 +8,8 @@
 
 ## Canlı Ürün
 
-- **Web:** https://api.altspacelabs.com
+- **Web:** https://api.altspacelabs.com (mobil dizaynı ile)
+- **Giriş Bilgileri:** Email: admin@altspacelabs.com | Password: Wattara@Admin!
 - **API sağlık kontrolü:** https://api.altspacelabs.com/api/health
 - **Android APK:** https://expo.dev/accounts/isobed18/projects/wattra/builds/ef0686ec-ec06-4a82-8cd7-6ab817ff7e4a
 - **Yayın mimarisi:** Cloudflare DNS → Railway → FastAPI + Expo Web; kalıcı kullanıcı verisi Railway volume üzerinde tutulur.
@@ -214,9 +215,14 @@ _Tüketim Modeli (v0 → v1):_
 
 **Ürün Ekran Görüntüleri**
 
-| Asistan | Rapor | Bugün | Yarın | Ayarlar |
-|---|---|---|---|---|
 
+| Onboarding | Bugün | Yarın | Detay |
+|---|---|---|---|
+| ![Onboarding](docs/gorseller/sprint3_demo0.png) | ![Bugün](docs/gorseller/sprint3_demo1.png) | ![Yarın](docs/gorseller/sprint3_demo2.png) | ![Detay](docs/gorseller/sprint3_demo3.png) |
+
+| Ayarlar (Genel) | Ayarlar (Sistem) | Asistan |
+|---|---|---|
+| ![Ayarlar](docs/gorseller/sprint3_demo4.png) | ![Ayarlar](docs/gorseller/sprint3_demo5.png) | ![Asistan](docs/gorseller/sprint3_demo6.png) |
 
 
 **Sprint Review:** Bu sprint'te projeyi bir prototipten ürüne dönüştürmek hedeflendi. JWT tabanlı çoklu oturum (Auth) sistemi başarıyla entegre edilerek kullanıcı verileri güvenle izole edildi. Model şeffaflığını sağlamak adına eğitim verileri (EPİAŞ) ve sabit EPDK tarifeleri `manifest.json` dosyası ve şeffaf UI uyarılarıyla (live/cached) görünür kılındı. Ayrıca, uç durumlardaki hatalar iyileştirilip tasarruf hesaplamaları çok daha dürüst bir dille ("Uygulanan - tahmini") anlatılarak kullanıcı deneyimi profesyonelleştirildi.
