@@ -58,7 +58,7 @@ Pydantic ile tanımlandı ve kilitlendi. İki ekip (YZ/VB) bu kontrat üzerinden
 **Kart açıklaması:** Python scriptiyle PVGIS (SARAH3, saatlik ışınım + PV üretim)
 ve Open-Meteo (canlı/geçmiş hava) verileri Türkiye koordinatları için çekilip
 temizlendi. Open-Meteo aynı zamanda agent'ın canlı tool'u.
-**Kabul kriteri:** `pvgis_fetch.py` CSV üretiyor · `get_weather` canlı veriyi dönüyor · ağ yoksa cache/sentetik fallback.
+**Kabul kriteri:** `pvgis_fetch.py` CSV üretiyor · `get_weather` eksiksiz canlı veriyi dönüyor · servis hatası kullanıcıya açıkça iletiliyor.
 **Kod:** `data/scripts/pvgis_fetch.py` · `backend/app/tools/weather.py`
 
 ### S1-4 · Backend: FastAPI + Docker + SQLite  `[YZ · 3 SP · ✅]`
@@ -75,12 +75,12 @@ optimize (deterministik cihaz/batarya planı), read/write_memory. Optimizasyon "
 **Kabul kriteri:** Cihaz güneş fazlası saatine yerleşir · üç zamanlıda puanta asla girmez · batarya gündüz şarj/pahalı saat deşarj · testlerle doğrulandı.
 **Kod:** `backend/app/tools/*` · `backend/tests/test_core.py`
 
-### S1-6 · Gemini agent + fallback + müzakere döngüsü  `[YZ · 8 SP · ✅]`
+### S1-6 · Gemini agent + müzakere döngüsü  `[YZ · 8 SP · ✅]`
 **Kart açıklaması:** Gemini function-calling döngüsü: agent hangi tool'u ne zaman
 çağıracağına kendi karar verir; kullanıcı itirazını (ör. "salı öğlen evde yokum")
-hafızaya yazıp planı yeniden kurar. Anahtar yoksa kural-tabanlı fallback devrede
-(ürün asla durmaz, `agent_mode='fallback'` işaretlenir).
-**Kabul kriteri:** itiraz → write_memory → optimize zinciri çalışıyor · fallback modda uçtan uca yanıt · çağrılan tool zinciri şeffaf dönüyor.
+hafızaya yazıp planı yeniden kurar. Gemini kullanılamıyorsa hazırlanmış veya uydurma
+yanıt dönmek yerine asistan isteği açık bir servis hatasıyla sonlanır.
+**Kabul kriteri:** itiraz → write_memory → optimize zinciri çalışıyor · tool çıktıları dışında sayı üretilmiyor · model hatası kullanıcıya güvenli iletiliyor.
 **Kod:** `backend/app/agent/*`
 
 ### S1-7 · Mobil + web uygulaması (Expo)  `[YZ · 8 SP · ✅]`
@@ -100,9 +100,9 @@ ay sonu raporu (gerçekleşen + karşı-olgusal "kaçırılan fırsat"); CO₂/�
 ### S1-9 · Grounding guard + agent eval suite + API sağlamlaştırma  `[YZ · 3 SP · ✅]`
 **Kart açıklaması:** Agent'ın "sayı uydurmama" dürüstlük kuralını **kod düzeyinde**
 zorunlu kılan grounding guard (`grounding.py`): agent'ın Türkçe cevabındaki her
-TL/CO₂ rakamı, tool'ların ürettiği plana bağlı değilse yakalanır. Fallback agent
-için senaryo-tabanlı 6 eval testi (`test_agent.py`): doğru tool orkestrasyonu,
-kısıt uyumu, tercih kalıcılığı, grounding ve canlı LLM grounding fallback'i. API'ye global hata yakalayıcı + istek
+TL/CO₂ rakamı, tool'ların ürettiği plana bağlı değilse yakalanır. Senaryo-tabanlı
+agent testleri (`test_agent.py`) provider zorunluluğunu, tercih kalıcılığını ve
+grounding kurallarını doğrular. API'ye global hata yakalayıcı + istek
 loglama; Gemini tool argümanları defensive temizlenir (bilinmeyen arg atılır,
 `blocked_hours` 0–23'e clamp).
 **Kabul kriteri:** 27/27 test yeşil · uydurma rakam (999 TL) testte yakalanıyor · ruff temiz · beklenmeyen hatada stack sızmıyor.
@@ -120,15 +120,15 @@ canlı Gemini anahtarıyla sağlamlaştır. **Kontrat sabit — yalnız tool gö
 **Puan tamamlama mantığı:** En yüksek jüri ağırlığı "AI/ML modeli" kaleminde; bu
 sprint puanın çoğu (16 SP) iki gerçek v1 tahmin modeline ayrıldı.
 
-### S2-1 · Weather-aware üretim modeli v1  `[VB · 8 SP · 🟡 branch]`
+### S2-1 · Weather-aware üretim modeli v1  `[VB · 8 SP · ✅]`
 **Kart açıklaması:** PVGIS/Open-Meteo saatlik verisiyle eğitilebilir, runtime'da
 Open-Meteo'nun anlık/gelecek kısa dalga ışınımı, sıcaklık ve bulut verisini kullanan
-üretim modeli. `forecast_production` gövdesi v1 model artifact'ini okur; model
-yoksa fiziksel fallback devreye girer. Eğitim scripti PVGIS CSV'den artifact üretir.
+üretim modeli. `forecast_production` gövdesi zorunlu LightGBM artifact'ini okur;
+eksik model deployment hatasıdır. Eğitim scripti PVGIS CSV'den artifact üretir.
 **Kabul kriteri:** `model_version="v1-weather-regressor"` · güneşli/bulutlu gün farkı testli · imza değişmedi · testler yeşil.
-**Kod:** `backend/app/tools/production.py` · `backend/app/models/production_v1.json` · `data/scripts/train_production_model.py`
+**Kod:** `backend/app/tools/production.py` · `backend/app/models/production_v1.json` · `data/scripts/train_production_model_lgbm.py`
 
-### S2-2 · Generic smart-meter tüketim modeli v1  `[VB · 8 SP · 🟡 branch]`
+### S2-2 · Generic smart-meter tüketim modeli v1  `[VB · 8 SP · ✅]`
 **Kart açıklaması:** Hane/KOBİ saatlik talebini açık smart-meter verisinden çıkarılabilen
 24 saatlik yük şekli + kullanıcının aylık faturasıyla kalibre eden v1 model. Türkiye'ye
 özel sayaç verisi gerekmez; generic şekil kullanıcı faturasıyla ölçeklenir.
@@ -141,13 +141,12 @@ karşılaştır; korelasyonu ve kalibrasyon yöntemini METHOD.md §3'te raporla.
 **Kabul kriteri:** EPİAŞ ile şekil korelasyonu belgelendi · sapma noktaları not edildi.
 **Kod:** `docs/METHOD.md` · analiz notebook/script
 
-### S2-4 · Gemini/Ollama provider zinciri + prompt iyileştirme  `[YZ · 5 SP · 🟡 branch]`
-**Kart açıklaması:** Gerçek `GEMINI_API_KEY` ile uçtan uca agent testi; anahtar yoksa
-opsiyonel `OLLAMA_ENABLED=1` ile yerel Ollama tool-calling provider'ı çalıştır. Her
-LLM cevabı grounding guard'dan geçer; hata/timeout durumlarında deterministik fallback
-devreye girer. Sistem promptu ve tool açıklamaları gerçek çıktılarla iyileştirilir.
-**Kabul kriteri:** Gemini/Ollama/fallback provider sırası çalışıyor · local LLM testleri daemon gerektirmeden mock'lanıyor · grounding ihlalinde fallback.
-**Kod:** `backend/app/agent/orchestrator.py` · `backend/app/agent/local_llm.py` · `backend/app/config.py`
+### S2-4 · Gemini function-calling + prompt iyileştirme  `[YZ · 5 SP · ✅]`
+**Kart açıklaması:** Gerçek `GEMINI_API_KEY` ile uçtan uca agent; her LLM cevabı
+grounding guard'dan geçer. Hata veya timeout durumunda hazırlanmış bir yanıt üretilmez.
+Sistem promptu ve tool açıklamaları gerçek çıktılarla iyileştirilir.
+**Kabul kriteri:** Gemini tool çağrıları çalışıyor · grounding ihlali engelleniyor · anahtarsız ortam güvenli 503 döndürüyor.
+**Kod:** `backend/app/agent/orchestrator.py` · `backend/app/config.py`
 
 ### S2-5 · Chroma semantik hafıza  `[YZ · 5 SP]`
 **Kart açıklaması:** SQLite hafızanın üstüne Chroma/FAISS ile semantik arama ekle
@@ -168,7 +167,7 @@ yapışır; bölünmüş plan mobile "(1. bölüm) / (2. bölüm)" kartları ola
 **Kabul kriteri:** EV bloke öğle saatinin etrafından dolaşıp güneş penceresinde kalıyor · üç zamanlıda EV asla 17-22 puanta girmiyor · `kwh>power_kw×süre` fizibilite düzeltmesi çalışıyor · katalog ≥10 cihaz ve tüm satırlar `Device` şemasını geçiyor · 5 yeni test.
 **Kod:** `backend/app/data/devices.json` · `backend/app/tools/optimize.py` · `backend/tests/test_core.py`
 
-### S2-7 · Expo konum izni + konuma göre hava kontrolü  `[YZ · 5 SP · 🟡 branch]`
+### S2-7 · Expo konum izni + konuma göre hava kontrolü  `[YZ · 5 SP · ✅]`
 **Kart açıklaması:** Onboarding'de kullanıcıdan konum izni iste; izin verilirse gerçek
 lat/lon ile Open-Meteo hava/ışınım kontrolü yap, tahmini günlük üretimi göster ve
 profili bu koordinatla kaydet. Plan endpoint'i bu konumun bugün/yarın hava tahminiyle
@@ -176,7 +175,7 @@ optimizasyon üretir.
 **Kabul kriteri:** kullanıcı izin verirse gerçek koordinat kaydedilir · izin yoksa şehir seçimi çalışır · `/api/weather-check` üretim modeliyle hava özeti döner · mobile dependency uyumlu.
 **Kod:** `mobile/src/screens/Onboarding.js` · `mobile/src/api.js` · `mobile/app.config.js` · `backend/app/main.py`
 
-### S2-8 · Gerçek zamanlı optimizer + performans iyileştirme  `[YZ · 5 SP · 🟡 branch]`
+### S2-8 · Gerçek zamanlı optimizer + performans iyileştirme  `[YZ · 5 SP · ✅]`
 **Kart açıklaması:** Planı her çağrıda güncel hava/saat/kısıtlarla yeniden hesapla:
 Open-Meteo current koşullarını bugünün ilgili saatine işle, geçmiş saatleri cihaz ve
 batarya dispatch için otomatik blokla, cihaz yerleşimini greedy + coordinate descent
@@ -199,10 +198,10 @@ yeterli; kalanlar v2 yol haritası olarak durabilir.
 
 ### TDB-1 · Agent grounding repair loop  `[YZ · 5 SP]`
 **Kart açıklaması:** Grounding guard bugün uydurulmuş TL/CO₂ sayılarını yakalıyor.
-Canlı Gemini modunda bu yakalama sadece fallback'e düşmekle kalmasın; agent'a
+Canlı Gemini modunda bu yakalama sadece hataya dönüşmekle kalmasın; agent'a
 "şu sayılar araç çıktısında yok" geri bildirimi verilip cevabı yeniden ürettiren
-repair loop eklensin. İkinci deneme de başarısızsa deterministik fallback döner.
-**Kabul kriteri:** sahte 999 TL senaryosu kullanıcıya hiç sızmıyor · bir başarılı repair testi · başarısız repair'de fallback.
+repair loop eklensin. İkinci deneme de başarısızsa güvenli servis hatası döner.
+**Kabul kriteri:** sahte 999 TL senaryosu kullanıcıya hiç sızmıyor · bir başarılı repair testi · başarısız repair güvenli hata veriyor.
 **Kod:** `backend/app/agent/orchestrator.py` · `backend/tests/test_agent.py`
 
 ### TDB-2 · Golden conversation eval set  `[YZ · 5 SP]`
@@ -235,10 +234,10 @@ Fiyat sabitleri değişince optimizer ekonomisi bozulursa test yakalar.
 **Kod:** `backend/tests/fixtures/tariff_2026.json` · `backend/tests/test_tariff_regression.py`
 
 ### TDB-6 · Observability-ready API  `[YZ · 3 SP]`
-**Kart açıklaması:** İstek loglarının üstüne `request_id`, `agent_mode`, tool sayısı,
-fallback nedeni ve süre metriklerini ekle. Demo sırasında "agent ne yaptı?" sorusuna
+**Kart açıklaması:** İstek loglarının üstüne `request_id`, provider, tool sayısı,
+hata nedeni ve süre metriklerini ekle. Demo sırasında "agent ne yaptı?" sorusuna
 loglardan cevap verilebilir.
-**Kabul kriteri:** her assistant çağrısında request_id · agent_mode/fallback_reason loglanır · stack trace kullanıcıya sızmaz.
+**Kabul kriteri:** her assistant çağrısında request_id · provider/hata nedeni loglanır · stack trace kullanıcıya sızmaz.
 **Kod:** `backend/app/main.py` · `backend/app/agent/orchestrator.py`
 
 ### TDB-7 · Mobile offline/error states polish  `[YZ · 5 SP]`
@@ -287,9 +286,9 @@ constraint testleri geçiyor.
 
 ### S3-4 · Production deployment ve build stabilitesi  `[Ortak · 5 SP · ✅]`
 **Kart açıklaması:** Expo Web ve FastAPI'yi tek production image içinde Railway'e
-deploy et; kalıcı volume, Cloudflare custom domain, EAS build profilleri, env tabanlı
+deploy et; kalıcı volume, custom domain, EAS build profilleri, env tabanlı
 API URL ve smoke test ekle.
-**Kabul kriteri:** `/api/health` canlı · Railway volume bağlı · Cloudflare domain
+**Kabul kriteri:** `/api/health` canlı · Railway volume bağlı · custom domain
 doğrulanmış · Expo Doctor temiz · Android APK canlı backend'e bağlanıyor.
 **Kod:** `backend/Dockerfile` · `railway.json` · `mobile/app.config.js` · `mobile/eas.json`
 
@@ -314,4 +313,5 @@ Sprinte eklenmeyen ama sunum "ürün buraya gidiyor" slaytı için: multi-agent 
 (uzman tahmin/optimizasyon/müzakere ajanları), NILM otomatik cihaz tanıma, mahalle
 mikro-paylaşım (P2P) simülasyonu ve **gerçek güneş paneli / akıllı sayaç donanım
 entegrasyonu** (inverter API'leri, Modbus/MQTT, ev enerji yönetim sistemleri).
-Donanım entegrasyonu için araştırma notu: [HANDOFF.md](../HANDOFF.md) → "Gelecek araştırma".
+Donanım entegrasyonu için inverter API, Modbus/MQTT güvenliği ve kullanıcı onayı ayrı
+bir teknik keşif çalışması olarak yürütülecektir.

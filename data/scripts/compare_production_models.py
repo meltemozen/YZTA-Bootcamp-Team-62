@@ -4,7 +4,7 @@ Trains RandomForest, Ridge, and (if installed) LightGBM / XGBoost on the same
 feature set the backend actually has at inference time — see
 `backend/app/tools/production.py`: irradiance (W/m^2), air temperature (C)
 and cloud cover (%) — plus the derived interaction terms already used by
-`train_production_model.py` (temp-loss interaction, cloud interaction,
+`train_production_model_lgbm.py` (temp-loss interaction, cloud interaction,
 edge-of-day loss). This keeps train/serve feature parity: whichever model
 wins can actually be deployed with the weather inputs the product has.
 

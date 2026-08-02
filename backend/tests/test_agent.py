@@ -39,30 +39,18 @@ def _new_user() -> int:
 
 def test_assistant_requires_a_real_provider(monkeypatch):
     monkeypatch.setattr(config, "GEMINI_API_KEY", "")
-    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
     with pytest.raises(orchestrator.AssistantUnavailableError):
         orchestrator.assistant_reply(_new_user(), _profile(), "Bugünkü planım nedir?")
 
 
 def test_gemini_response_is_returned_without_provider_metadata(monkeypatch):
     monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
-    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
     monkeypatch.setattr(orchestrator, "_gemini_loop", lambda context, message: "Planın hazır.")
 
     response = orchestrator.assistant_reply(_new_user(), _profile(), "Planımı açıkla")
 
     assert response.reply == "Planın hazır."
     assert response.model_dump() == {"reply": "Planın hazır.", "plan": None}
-
-
-def test_ollama_is_used_when_explicitly_enabled(monkeypatch):
-    monkeypatch.setattr(config, "GEMINI_API_KEY", "")
-    monkeypatch.setattr(config, "OLLAMA_ENABLED", True)
-    monkeypatch.setattr(orchestrator, "ollama_loop",
-                        lambda context, message, **kwargs: "Yerel asistan yanıtı.")
-
-    response = orchestrator.assistant_reply(_new_user(), _profile(), "Planımı açıkla")
-    assert response.reply == "Yerel asistan yanıtı."
 
 
 def test_invalid_model_answer_is_rejected(monkeypatch):
@@ -78,7 +66,6 @@ def test_invalid_model_answer_is_rejected(monkeypatch):
 def test_preference_backstop_persists_user_constraint(monkeypatch):
     uid = _new_user()
     monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
-    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
     monkeypatch.setattr(orchestrator, "_gemini_loop", lambda context, message: "Tercihin kaydedildi.")
 
     orchestrator.assistant_reply(uid, _profile(), "22'den sonra çalıştırma")

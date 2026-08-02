@@ -5,14 +5,11 @@ __pycache__/
 *.db
 .pytest_cache/
 
-# Chroma vector store (S2-5 semantic memory — local data, never committed)
+# Chroma vector store (local data, never committed)
 backend/chroma/
 
-# Ortam değişkenleri — anahtarlar asla commit edilmez
+# Ortam değişkenleri ve çalışma zamanı çıktıları
 .env
-cloudflaretunnel.txt
-gemini_apikey.txt
-.wattra-backend.pid
 logs/
 
 # Node / Expo
@@ -23,7 +20,6 @@ dist/
 # Veri dosyaları (büyük CSV'ler repoya girmez)
 data/*.csv
 data/scripts/*.csv
-backend/chroma/
 
 # IDE / OS
 .vscode/

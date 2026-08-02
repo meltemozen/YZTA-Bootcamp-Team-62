@@ -1,4 +1,4 @@
-# Voltaic — Sistem Mimarisi ve ML Raporu
+# Wattra — Sistem Mimarisi ve ML Raporu
 
 > Bu rapor Sprint 2 ve sonrası için teknik mimariyi açıklar: hava durumuna bağlı
 > üretim modeli, tüketim modeli, fiyat/tarife optimizasyonu, agent katmanı ve
@@ -6,7 +6,7 @@
 
 ## 1. Executive Summary
 
-Voltaic'in ana iddiası "agent konuşsun" değil; kullanıcının konumu, hava tahmini,
+Wattra'nın ana iddiası "agent konuşsun" değil; kullanıcının konumu, hava tahmini,
 panel gücü, fatura kalibrasyonu ve elektrik tarifesinden **maliyet düşüren günlük
 enerji planı** üretmektir. LLM katmanı planı hesaplamaz; planı Türkçe açıklar,
 kullanıcı itirazlarını anlar ve hafızaya yazar. Karar motoru deterministik,
@@ -84,7 +84,7 @@ Kod karşılığı:
 - `backend/app/tools/weather.py`
 - `backend/app/tools/production.py`
 - `backend/app/models/production_v1.json`
-- `data/scripts/train_production_model.py`
+- `data/scripts/train_production_model_lgbm.py`
 
 Model yaklaşımı şu an bilinçli olarak küçük ve taşınabilir tutuldu. LightGBM'e
 kilitlenmeden, PVGIS/Open-Meteo CSV'leriyle yeniden eğitilebilir bir regression
@@ -120,7 +120,7 @@ yaz aylarında klima, kış aylarında ısıtma etkisi daha iyi modellenir.
 
 ```mermaid
 flowchart TD
-    A["PVGIS hourly CSV<br/>irradiance, temp, PV output"] --> B["train_production_model.py"]
+    A["PVGIS hourly CSV<br/>irradiance, temp, PV output"] --> B["train_production_model_lgbm.py"]
     B --> C["production_v1.json"]
     C --> D["forecast_production runtime"]
 
@@ -250,7 +250,7 @@ Kodda bunun karşılığı:
 
 - Default Türkiye adapter'ı: `backend/app/tools/tariff.py`
 - Tarife sabitleri: `backend/app/config.py`
-- Araştırma/dinamik fiyat hook'u: `VOLTAIC_PRICE_VECTOR_FILE`
+- Araştırma/dinamik fiyat hook'u: `WATTRA_PRICE_VECTOR_FILE`
   (`hourly_price` ve opsiyonel `hourly_sell_price` içeren 24 elemanlı JSON).
 
 ## 7. Agent / LLM Katmanı
@@ -260,25 +260,19 @@ etkileşim sağlar.
 
 ```mermaid
 flowchart TD
-    A["Assistant request"] --> B{"GEMINI_API_KEY var mı?"}
+    A["Assistant request"] --> B{"Gemini kullanılabilir mi?"}
     B -->|Evet| C["Gemini function calling"]
-    B -->|Hayır| D{"OLLAMA_ENABLED=1 mi?"}
-    D -->|Evet| E["Ollama local LLM<br/>tool calling"]
-    D -->|Hayır| F["Deterministic fallback"]
-
-    C --> G["Tool calls"]
-    E --> G
-    F --> G
-
-    G --> H["weather / production / consumption / tariff / optimize / memory"]
-    H --> I["Reply + DailyPlan"]
-    I --> J{"Grounding guard"}
-    J -->|Sayılar tool çıktısına bağlı| K["Kullanıcı cevabı"]
-    J -->|Uydurma sayı var| F
+    B -->|Hayır| D["503: asistan geçici olarak kullanılamıyor"]
+    C --> E["Tool calls"]
+    E --> F["weather / production / consumption / tariff / optimize / memory"]
+    F --> G["Reply + DailyPlan"]
+    G --> H{"Grounding guard"}
+    H -->|Tool çıktılarıyla tutarlı| I["Kullanıcı cevabı"]
+    H -->|Geçersiz sayı veya varlık| D
 ```
 
-Bu tasarım yerel LLM denemelerine izin verir ama ürünü Ollama'ya bağımlı yapmaz.
-CI/test ortamında Ollama gerekmemesi için local provider opsiyoneldir.
+LLM planı hesaplamaz; yalnızca doğrulanmış araçları çağırır ve sonuçları açıklar.
+Gemini kullanılamadığında sistem uydurma veya önceden yazılmış bir yanıt üretmez.
 
 ## 8. Gerçek Zamanlı Yeniden Optimizasyon
 
@@ -311,7 +305,7 @@ Hazır olanlar:
 - Deterministik optimizer.
 - Bugün için geçmiş saatleri dışlayan runtime re-optimization.
 - EV şarj ve büyük cihaz metadata katalogu.
-- Gemini/Ollama/fallback provider zinciri.
+- Gemini function-calling ve grounding guard.
 - Grounding guard.
 - Backend testleri.
 

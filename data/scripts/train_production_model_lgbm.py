@@ -90,12 +90,7 @@ def main() -> None:
                        "compare_production_models.py for the held-out evaluation)",
         "target": "hourly AC kWh per installed kWp",
         "features": FEATURE_COLS,
-        # Kept for the pure-Python fallback path (no lightgbm installed, or
-        # the .txt file is missing) — production.py falls back to this
-        # physical/linear blend, matching the original v1-weather-regressor.
-        "fallback_performance_ratio": 0.80,
         "max_kw_per_kwp": 1.0,
-        "blend_with_physical": 0.0,
     }
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)

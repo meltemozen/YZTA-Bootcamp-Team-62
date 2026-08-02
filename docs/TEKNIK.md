@@ -7,7 +7,7 @@
 
 ```
 Open-Meteo ─┐                          ┌─ get_weather
-PVGIS ──────┤   ML Model Katmanı (VB)  ├─ forecast_production  (v0 physical → v1 LightGBM)
+PVGIS ──────┤   ML Model Katmanı (VB)  ├─ forecast_production  (LightGBM)
 EPDK tarife ┤   + kural motorları      ├─ forecast_consumption (fatura kalibrasyonu)
 Fatura ─────┘                          ├─ get_tariff           (kademe + saatlik mahsup)
                                        ├─ optimize             (deterministik plan)
@@ -16,7 +16,7 @@ Fatura ─────┘                          ├─ get_tariff           (
                         ▼
         Gemini Agent (function-calling döngüsü, YZ)
         · kendi kararıyla tool çağırır · itiraza yeniden planlar
-        · anahtar yoksa kural tabanlı fallback (ürün asla durmaz)
+        · grounding guard ile araç çıktılarının dışına çıkamaz
                         │ REST (FastAPI)
                         ▼
         Expo tek kod tabanı → Android/iOS uygulaması + web sitesi
@@ -29,10 +29,10 @@ Fatura ─────┘                          ├─ get_tariff           (
 | `backend/app/schemas.py` | **Model–agent kontratı (KİLİTLİ, v1.2)** | Ortak |
 | `backend/app/config.py` | Tüm enerji sabitleri + mevzuat kaynakları | Ortak |
 | `backend/app/tools/` | 6 tool: weather, production, consumption, tariff, optimize, memory | VB+YZ |
-| `backend/app/agent/` | Gemini orchestrator + context + fallback | YZ |
+| `backend/app/agent/` | Gemini orchestrator + context + grounding guard | YZ |
 | `backend/app/services/` | Ay sonu raporu (report), proaktif bildirim (notifications) | YZ |
-| `backend/tests/` | 14 çekirdek + API testi (`test_core.py`, `test_api.py`) | Ortak |
-| `mobile/` | Expo uygulaması (5 ekran + grafik) — mobil ve web | YZ-3 |
+| `backend/tests/` | Agent, API, auth, model ve servis testleri | Ortak |
+| `mobile/` | Expo uygulaması — Android, iOS ve web | YZ-3 |
 | `data/scripts/pvgis_fetch.py` | PVGIS eğitim verisi çekme | VB |
 | `docs/` | CONTRACT · METHOD · DEPLOY · TEKNIK | Ortak |
 
@@ -50,7 +50,7 @@ npx expo start          # telefon: Expo Go ile QR okut
 npx expo start --web    # tarayıcı: http://localhost:8081
 ```
 
-Testler: `cd backend && python -m pytest tests/ -v` (14/14, ağ gerektirmez).
+Testler: `cd backend && python -m pytest tests/ -v` (ağ gerektirmez).
 Ayrıntılı çalıştırma/deploy: [DEPLOY.md](DEPLOY.md)
 
 ## Tasarım kimliği
@@ -62,20 +62,17 @@ Tipografi: Space Grotesk (başlık/rakam) + Inter (gövde). Tüm belirteçler
 renkleri renk körlüğü (CVD) validatöründen geçirilmiştir — değiştirilecekse
 yeniden doğrulanmalıdır.
 
-## Takım için kalan işler (Sprint 2–3)
+## Production Durumu
 
-- [ ] **VB:** LightGBM üretim modeli v1 (`production.py` gövdesi, kontrat sabit) — Sprint 2
-- [ ] **VB:** LightGBM tüketim modeli v1 (`consumption.py` gövdesi) — Sprint 2
-- [ ] **VB:** EPİAŞ şekil doğrulama raporu (METHOD §3) — Sprint 2
-- [ ] **YZ+VB:** Model manifest + veri kalite şeffaflığı — Sprint 3
-- [ ] **YZ:** Gemini anahtarıyla uçtan uca agent testi + prompt incelemesi — Sprint 2
-- [ ] **YZ-3:** Chroma semantik hafıza (opsiyonel, `memory.py` genişleme noktası) — Sprint 2
-- [ ] **Ortak:** Railway/Cloud Run/Cloudflare canlı URL + deploy smoke testi — Sprint 3
-- [ ] **Ortak:** EAS Android/iOS build + TestFlight hazırlığı — Sprint 3
+- LightGBM üretim artifact'i image içine dahil edilir ve runtime'da zorunludur.
+- Tüketim modeli aylık fatura ile haneye kalibre edilir.
+- Hava girdisi Open-Meteo'dan anlık ve saatlik tahmin olarak alınır.
+- Gemini function-calling yalnızca sunucuda çalışır; mobil pakette API anahtarı yoktur.
+- Android APK ve birleşik Expo Web + FastAPI image üretim akışları hazırdır.
 
 ## Veri kaynakları
 
 [Open-Meteo](https://open-meteo.com) (canlı hava, anahtarsız) ·
 [PVGIS](https://re.jrc.ec.europa.eu/pvg_tools/en/) (ışınım geçmişi) ·
-Kullanıcı tanımlı tarife override'ı + kaynaklı sabit fallback tablo · [EPİAŞ Şeffaflık](https://seffaflik.epias.com.tr)
+Kullanıcı tanımlı tarife override'ı + kaynaklı sabit tarife tablosu · [EPİAŞ Şeffaflık](https://seffaflik.epias.com.tr)
 (profil doğrulama) · UCI/London (tüketim şekli) · ETKB (emisyon faktörü)

@@ -28,10 +28,6 @@ load_dotenv()
 # --- LLM ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "0").lower() in ("1", "true", "yes", "on")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
-OLLAMA_TIMEOUT_S = float(os.getenv("OLLAMA_TIMEOUT_S", "45"))
 
 # --- JWT Authentication ---
 _jwt_env = os.getenv("JWT_SECRET_KEY", "")

@@ -29,5 +29,5 @@ limiter = SlidingWindowLimiter()
 
 
 def client_ip(headers, fallback: str) -> str:
-    """Trust Cloudflare's address because the API only listens on loopback."""
-    return headers.get("cf-connecting-ip") or fallback
+    """Use the address supplied by the ASGI server for abuse controls."""
+    return fallback

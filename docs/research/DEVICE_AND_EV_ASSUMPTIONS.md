@@ -6,7 +6,7 @@ gerçekçi başlangıç değerleri sağlamaktır.
 
 ## 1. Cihaz Modeli
 
-Voltaic'te her esnek cihaz şu alanlarla temsil edilir:
+Wattra'da her esnek cihaz şu alanlarla temsil edilir:
 
 - `name`: kullanıcıya görünen cihaz adı
 - `kwh`: bir çalışma döngüsündeki toplam enerji

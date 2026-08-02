@@ -4,7 +4,7 @@ The code embodiment of a "real agent": Gemini decides ITSELF which tool to call
 and when (no hand-wired pipeline), reads memory, and on a user objection writes
 the preference to memory and re-plans.
 
-The assistant answers only through a configured Gemini or Ollama model. Model
+The assistant answers only through configured Gemini function calling. Model
 failures become service-unavailable errors instead of fabricated text.
 
 The SYSTEM_PROMPT and tool descriptions are intentionally Turkish: they steer
@@ -19,7 +19,6 @@ from .. import config
 from ..schemas import AssistantResponse, HouseholdProfile
 from .context import ToolContext
 from .grounding import ungrounded_dates, ungrounded_entities, ungrounded_numbers
-from .local_llm import ollama_loop
 
 log = logging.getLogger(__name__)
 
@@ -224,19 +223,4 @@ def assistant_reply(user_id: int, profile: HouseholdProfile, message: str) -> As
         except Exception:
             log.exception("Gemini orchestration failed")
 
-    if config.OLLAMA_ENABLED:
-        try:
-            text = ollama_loop(
-                context,
-                message,
-                system_prompt=SYSTEM_PROMPT,
-                tool_definitions=TOOL_DEFINITIONS,
-                clean_args=_clean_args,
-                max_steps=MAX_STEPS,
-            )
-            _ensure_preference_persisted(context, message)
-            return _safe_response(context, text, message, "ollama")
-        except Exception:
-            log.exception("Ollama orchestration failed")
-
-    raise AssistantUnavailableError("No language model is available")
+    raise AssistantUnavailableError("Gemini is unavailable")

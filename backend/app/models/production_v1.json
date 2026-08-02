@@ -11,6 +11,5 @@
     "cloud_interaction",
     "edge_hour_loss"
   ],
-  "max_kw_per_kwp": 1.0,
-  "blend_with_physical": 0.0
+  "max_kw_per_kwp": 1.0
 }

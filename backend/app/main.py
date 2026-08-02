@@ -10,7 +10,7 @@ Endpoints map one-to-one to the mobile app screens:
 
   POST /api/register        → Onboarding (legacy, backward-compatible)
   GET  /api/plan/{id}       → Today screen (fast plan, no agent)
-  POST /api/assistant       → Assistant chat (Gemini or Ollama)
+  POST /api/assistant       → Assistant chat (Gemini function calling)
   GET  /api/report/{id}     → Monthly report (counterfactual + CO2)
   GET  /api/notifications/{id} → Proactive alerts
   POST /api/feedback        → "applied / not applied"
@@ -491,8 +491,8 @@ def device_catalog():
         return json.load(f)
 
 
-# Keep API routes above this mount. The local production export is served by
-# the same Cloudflare hostname, so web and API share one hardened origin.
+# Keep API routes above this mount. The production web export and API share
+# one origin so the client does not need runtime server configuration.
 _default_web_dist = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "mobile", "dist")
 )

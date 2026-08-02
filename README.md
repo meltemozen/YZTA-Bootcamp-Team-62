@@ -12,11 +12,7 @@
 - **Giriş Bilgileri:** Email: admin@altspacelabs.com | Password: Wattara@Admin!
 - **API sağlık kontrolü:** https://api.altspacelabs.com/api/health
 - **Android APK:** https://expo.dev/accounts/isobed18/projects/wattra/builds/ef0686ec-ec06-4a82-8cd7-6ab817ff7e4a
-- **Yayın mimarisi:** Cloudflare DNS → Railway → FastAPI + Expo Web; kalıcı kullanıcı verisi Railway volume üzerinde tutulur.
-
-Production çalışma ortamı kullanıcının bilgisayarına veya Cloudflare Tunnel'a bağlı
-değildir. Gemini anahtarı ve JWT anahtarı yalnızca Railway secret değişkenlerindedir;
-repo ve mobil pakete dahil edilmez.
+- **Yapay zeka:** Gemini 3.6 Flash function-calling; API anahtarı yalnızca sunucu ortamında tutulur.
 
 ---
 
@@ -228,9 +224,9 @@ _Tüketim Modeli (v0 → v1):_
 **Sprint Review:** Bu sprint'te projeyi bir prototipten ürüne dönüştürmek hedeflendi. JWT tabanlı çoklu oturum (Auth) sistemi başarıyla entegre edilerek kullanıcı verileri güvenle izole edildi. Model şeffaflığını sağlamak adına eğitim verileri (EPİAŞ) ve sabit EPDK tarifeleri `manifest.json` dosyası ve şeffaf UI uyarılarıyla (live/cached) görünür kılındı. Ayrıca, uç durumlardaki hatalar iyileştirilip tasarruf hesaplamaları çok daha dürüst bir dille ("Uygulanan - tahmini") anlatılarak kullanıcı deneyimi profesyonelleştirildi.
 
 **Production Teslim Notu:** Expo SDK 57 geçişi tamamlandı. Expo Web ve FastAPI,
-kalıcı volume ile Railway üzerinde yayınlandı; `api.altspacelabs.com` Cloudflare
-üzerinden bağlandı. Gemini 3.6 Flash, Android EAS APK, backend testleri, Expo Doctor
-ve canlı smoke testi doğrulandı.
+kalıcı volume ile Railway üzerinde yayınlandı ve `api.altspacelabs.com` alan adına
+bağlandı. Gemini 3.6 Flash, Android EAS APK, backend testleri, Expo Doctor ve canlı
+smoke testi doğrulandı.
 
 **Sprint Retrospective:** Bu sprint, görev dağılımının ve ekip içi iletişimin en verimli ilerlediği süreç oldu. yapay zeka ve veri bilimi ekiplerinin eşzamanlı çalışmaları çok daha koordine yürütüldü. Saatlik mahsuplaşma problemine donanım gerektirmeyen, tamamen çalışan ve değer üreten bir ürün ortaya koymuş olmanın gururuyla Bootcamp süreci başarıyla tamamlandı.
 

@@ -54,7 +54,6 @@ Agent bu tool'ları **kendi kararıyla, kendi sırasıyla** çağırır — elle
 - `PlanItem.type`: `device` | `battery_charge` | `battery_discharge`
 - `reason_code`: `solar_surplus` | `avoid_peak` | `cheap_night` | `netmeter_edge`
 - `band`: `day` | `peak` | `night` | `flat`
-- `agent_mode`: `gemini` | `fallback`
 
 ## Orijinal dokümandan farklar (gerekçeli)
 

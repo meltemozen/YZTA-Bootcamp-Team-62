@@ -1,6 +1,6 @@
 # Enerji Optimizasyonu Araştırma Notu
 
-Bu not Voltaic'in teknik yönünü netleştirir: dünyadaki ev enerji yönetimi
+Bu not Wattra'nın teknik yönünü netleştirir: dünyadaki ev enerji yönetimi
 sistemleri nasıl çalışır, biz bunu Türkiye tarifesine nasıl uyarlıyoruz ve ürün
 anlık değişimlere nasıl tepki verir.
 
@@ -91,14 +91,14 @@ Kod karşılığı:
 
 - Default adapter: `backend/app/tools/tariff.py`
 - Türkiye sabitleri: `backend/app/config.py`
-- Harici fiyat vektörü hook'u: `VOLTAIC_PRICE_VECTOR_FILE`
+- Harici fiyat vektörü hook'u: `WATTRA_PRICE_VECTOR_FILE`
 
 Bu tasarım sayesinde ileride EPİAŞ veya başka bir dinamik sinyal kullanılacaksa
 optimizer yeniden yazılmaz; sadece 24 elemanlı fiyat vektörü beslenir.
 
 ## 4. Anlık Değişimlere Adaptasyon
 
-Voltaic'te anlık değişim üç yerden gelir:
+Wattra'da anlık değişim üç yerden gelir:
 
 1. **Hava:** Open-Meteo bugünün current koşullarını ve saatlik forecast'i verir.
 2. **Zaman:** Bugün için geçmiş saatler otomatik bloklanır.
@@ -121,7 +121,7 @@ hava/zaman durumuna göre farklı sonuç verebilir.
 
 ## 5. ML Modelinin Rolü
 
-Voltaic'te LLM karar verici değildir. Maliyet düşürme iddiası şu modellere dayanır:
+Wattra'da LLM karar verici değildir. Maliyet düşürme iddiası şu modellere dayanır:
 
 - PV üretim modeli: hava girdili.
 - Tüketim modeli: smart-meter shape + fatura kalibrasyonu.
