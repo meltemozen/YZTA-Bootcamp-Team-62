@@ -7,7 +7,7 @@ joint decision by both teams plus an update to docs/CONTRACT.md.
 All hourly arrays have 24 elements and represent local time 00:00-23:00.
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -27,6 +27,11 @@ class Device(BaseModel):
     category: str | None = Field(default=None, description="Device category for UI/reporting")
     flexibility: str | None = Field(default=None, description="shiftable | interruptible | fixed")
     source: str | None = Field(default=None, description="Assumption/source note")
+    enabled: bool = Field(default=True, description="Included in optimization when true")
+    is_running: bool = Field(default=False, description="User reports device is running now")
+    status_updated_at: datetime | None = Field(
+        default=None, description="When the running state was last changed")
+    user_defined: bool = Field(default=False, description="Created manually by the user")
 
 
 class CustomTariff(BaseModel):
@@ -41,7 +46,7 @@ class CustomTariff(BaseModel):
     day: float | None = Field(default=None, gt=0, description="Three-zone 06-17")
     peak: float | None = Field(default=None, gt=0, description="Three-zone 17-22")
     night: float | None = Field(default=None, gt=0, description="Three-zone 22-06")
-    sell: float | None = Field(default=None, gt=0,
+    sell: float | None = Field(default=None, ge=0,
                                description="Net-metering sell price if the user knows it")
 
 
@@ -76,10 +81,7 @@ class Weather(BaseModel):
     current_irradiance_wm2: float | None = None
     current_temp_c: float | None = None
     current_cloud_pct: float | None = None
-    source: Literal["live", "cached", "synthetic"] = Field(
-        default="live",
-        description="'live' = fresh Open-Meteo call, 'cached' = last known good response, "
-                    "'synthetic' = no network/cache at all, seasonal clear-sky estimate")
+    source: Literal["live"] = "live"
 
 
 class ProductionForecast(BaseModel):
@@ -89,11 +91,8 @@ class ProductionForecast(BaseModel):
     total_kwh: float
     model_version: str = Field(description="'v0-physical' | 'v1-lightgbm' — DS team swaps in v1")
     trained_at: str | None = Field(
-        default=None, description="Training/deploy date (YYYY-MM-DD) of this model_version's "
-                                  "artifact; None for the hardcoded v0-physical fallback")
-    weather_source: Literal["live", "cached", "synthetic"] = Field(
-        default="live", description="Passthrough of the Weather.source this forecast was built "
-                                    "from, so downstream consumers (plan, UI) can disclose it")
+        default=None, description="Training/deploy date (YYYY-MM-DD) of this model artifact")
+    weather_source: Literal["live"] = "live"
 
 
 class ConsumptionForecast(BaseModel):
@@ -103,8 +102,7 @@ class ConsumptionForecast(BaseModel):
     total_kwh: float
     model_version: str = "v0-profile"
     trained_at: str | None = Field(
-        default=None, description="Training/deploy date (YYYY-MM-DD) of this model_version's "
-                                  "artifact; None for the hardcoded v0-profile fallback")
+        default=None, description="Training/deploy date (YYYY-MM-DD) of this model artifact")
 
 
 class Tariff(BaseModel):
@@ -145,7 +143,7 @@ class DailyPlan(BaseModel):
         default="v1-greedy-coordinate-descent",
         description="Version tag for the deterministic optimize() algorithm — no trained "
                     "artifact backs this, bumped manually when the algorithm changes")
-    weather_source: str = Field(default="live", description="'live' | 'cached' | 'synthetic' — provenance of the weather data used")
+    weather_source: Literal["live"] = "live"
     chart_data: dict = Field(default_factory=dict, description="For charts: production/consumption/price arrays")
 
 
@@ -177,8 +175,6 @@ class AssistantRequest(BaseModel):
 class AssistantResponse(BaseModel):
     reply: str = Field(description="The agent's reasoned Turkish answer")
     plan: DailyPlan | None = None
-    agent_mode: Literal["gemini", "ollama", "fallback"]
-    tool_calls: list[str] = Field(default_factory=list, description="Transparency: which tools were called")
 
 
 class Feedback(BaseModel):
@@ -202,7 +198,7 @@ class MonthlyReport(BaseModel):
     car_km_equiv: float = Field(default=0, description="Car-km equivalent of avoided CO2")
     tree_month_equiv: float = Field(default=0, description="How many trees' monthly absorption")
     data_disclaimer: str = Field(
-        default="Tüm tasarruf rakamları tarife ve üretim tahminine dayalı simülasyondur; sayaç ölçümü değildir.",
+        default="Sonuçlar tarife, üretim tahmini ve uyguladığın planlara göre hesaplanır; sayaç ölçümü değildir.",
         description="Transparency disclaimer shown to the user")
     note: str
 
@@ -219,10 +215,7 @@ class WeatherCheck(BaseModel):
     max_temp_c: float
     production_model_version: str
     estimated_production_kwh: float
-    weather_source: Literal["live", "cached", "synthetic"] = Field(
-        description="Whether the underlying weather is a fresh Open-Meteo call, a cached "
-                    "fallback, or a synthetic seasonal estimate — surfaced so the UI can "
-                    "disclose degraded data quality instead of presenting it as live")
+    weather_source: Literal["live"] = "live"
 
 
 # --------------------------------------------------------------------------
@@ -258,7 +251,7 @@ class AuthRegisterRequest(BaseModel):
     email: str = Field(pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$", description="User e-mail address")
     password: str = Field(min_length=6, description="Min 6 characters")
     name: str = Field(default="", description="Display name")
-    profile: HouseholdProfile
+    profile: HouseholdProfile | None = None
 
 
 class AuthLoginRequest(BaseModel):
@@ -272,6 +265,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user_id: int
     name: str
+    is_admin: bool = False
     message: str
 
 
@@ -283,7 +277,8 @@ class UserProfileResponse(BaseModel):
     user_id: int
     email: str
     name: str
-    profile: HouseholdProfile
+    is_admin: bool = False
+    profile: HouseholdProfile | None = None
 
 
 class ProfileUpdateRequest(BaseModel):

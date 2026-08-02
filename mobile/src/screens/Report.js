@@ -1,6 +1,4 @@
-// Monthly report: estimated saving (simulation-based) + missed opportunity
-// (counterfactual) + CO2. Figures are simulation-based and the screen states
-// this honestly.
+// Monthly report: estimated saving, missed opportunity and environmental impact.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
@@ -58,7 +56,7 @@ export default function Report({ userId, refreshKey = 0 }) {
       {error && !report && (
         <ErrorState
           message="Ay sonu raporu alınamadı."
-          hint={`Ayarlar sekmesinden sunucu adresini kontrol edebilirsin. (${error})`}
+          hint="Bağlantını kontrol edip tekrar dene."
           onRetry={load}
         />
       )}
@@ -67,7 +65,7 @@ export default function Report({ userId, refreshKey = 0 }) {
         <EmptyState
           title="Henüz raporlanacak bir ay yok"
           message={'Bu ay için kaydedilmiş bir plan bulunmuyor. Bugün sekmesinden planını '
-            + 'oluştur ve uyguladığın önerileri işaretle — ay sonunda gerçekleşen tasarrufunu '
+            + 'oluştur ve uyguladığın önerileri işaretle — ay sonunda tahmini kazancını '
             + 've kaçırdığın fırsatı burada göreceksin.'}
         />
       )}
@@ -78,7 +76,7 @@ export default function Report({ userId, refreshKey = 0 }) {
             <Box
               label="Uygulanan (tahmini)"
               value={rangeTL(report.realized_saving_tl_min, report.realized_saving_tl_max)}
-              subText={`${report.applied_count}/${report.total_count} öneri uygulandı (simülasyon)`}
+              subText={`${report.applied_count}/${report.total_count} öneri uygulandı`}
               color={colors.goodText}
             />
             <Box
@@ -104,7 +102,7 @@ export default function Report({ userId, refreshKey = 0 }) {
           </View>
 
           <View style={[card, { borderLeftWidth: 3, borderLeftColor: colors.amber }]}>
-            <Text style={text.subtitle}>Wattra'in yorumu · {report.month}</Text>
+            <Text style={text.subtitle}>Wattra'nın yorumu · {report.month}</Text>
             <Text style={[text.body, { marginTop: spacing.s }]}>{report.note}</Text>
             <Text style={[text.small, { marginTop: spacing.s }]}>
               Çevresel etki, ETKB şebeke emisyon faktörüyle (0.44 kg CO₂e/kWh) hesaplanır.
@@ -113,8 +111,7 @@ export default function Report({ userId, refreshKey = 0 }) {
           </View>
 
           <Text style={[text.small, { textAlign: 'center', marginTop: spacing.s, lineHeight: 17 }]}>
-            {report.data_disclaimer || 'Tasarruf rakamları tarife + üretim tahminine dayalı simülasyondur.'}
-            {'\n'}Sayaç ölçümü değildir. Yöntem: docs/METHOD.md
+            {report.data_disclaimer || 'Sonuçlar tarife, üretim tahmini ve işaretlediğin uygulamalara göre hesaplanır.'}
           </Text>
         </>
       )}

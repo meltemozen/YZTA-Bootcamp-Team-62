@@ -7,8 +7,8 @@ import {
   ScrollView, Text, TextInput, View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
-import { alertUser } from '../notify';
 import { LogoMark, Wordmark } from '../components/Brand';
+import { InlineNotice } from '../components/States';
 import {
   primaryButton, primaryButtonText, inputField, linkText,
   spacing, font, card, colors, text,
@@ -36,13 +36,12 @@ export default function Login({ onSwitchToRegister }) {
     try {
       await login(email.trim(), password);
     } catch (err) {
-      const msg = err.message || '';
-      if (msg.includes('401')) {
+      if (err.status === 401) {
         setError('E-posta veya şifre hatalı.');
-      } else if (msg.includes('422')) {
+      } else if (err.status === 422) {
         setError('Geçersiz e-posta formatı girdiniz.');
       } else {
-        setError(`Sunucuya ulaşılamadı. ${msg}`);
+        setError('Bağlantı kurulamadı. Lütfen biraz sonra tekrar dene.');
       }
     } finally {
       setLoading(false);
@@ -77,16 +76,12 @@ export default function Login({ onSwitchToRegister }) {
             Giriş Yap
           </Text>
 
-          {error ? (
-            <View style={{ backgroundColor: 'rgba(242,109,109,0.12)', padding: spacing.m, borderRadius: 12, marginBottom: spacing.m, borderWidth: 1, borderColor: 'rgba(242,109,109,0.25)' }}>
-              <Text style={[text.body, { color: colors.critical, fontSize: 14 }]}>{error}</Text>
-            </View>
-          ) : null}
+          <InlineNotice tone="error" message={error} />
 
           <Text style={[text.label, { marginBottom: spacing.xs }]}>E-POSTA</Text>
           <TextInput
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(value) => { setEmail(value); setError(''); }}
             placeholder="ornek@mail.com"
             placeholderTextColor={colors.faint}
             keyboardType="email-address"
@@ -98,7 +93,7 @@ export default function Login({ onSwitchToRegister }) {
           <Text style={[text.label, { marginBottom: spacing.xs }]}>ŞİFRE</Text>
           <TextInput
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(value) => { setPassword(value); setError(''); }}
             placeholder="••••••••"
             placeholderTextColor={colors.faint}
             secureTextEntry
@@ -112,7 +107,10 @@ export default function Login({ onSwitchToRegister }) {
             style={[primaryButton, { opacity: loading ? 0.7 : 1 }]}
           >
             {loading ? (
-              <ActivityIndicator color={colors.amberInk} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.s }}>
+                <ActivityIndicator color={colors.amberInk} />
+                <Text style={primaryButtonText}>Giriş yapılıyor</Text>
+              </View>
             ) : (
               <Text style={primaryButtonText}>Giriş Yap</Text>
             )}

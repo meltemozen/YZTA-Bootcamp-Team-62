@@ -5,6 +5,7 @@ Requires no Gemini key; runs fully offline.
 """
 
 import os
+import sqlite3
 import tempfile
 
 os.environ["WATTRA_DB"] = os.path.join(tempfile.mkdtemp(), "test_auth.db")
@@ -57,7 +58,20 @@ def test_register_success():
     assert body["refresh_token"]
     assert body["token_type"] == "bearer"
     assert body["name"] == "Test Kullanıcı"
-    assert "kW" in body["message"]
+    assert body["message"] == "Hesabın oluşturuldu."
+
+
+def test_register_without_placeholder_profile():
+    resp = client.post("/api/auth/register", json={
+        "email": "empty-profile@wattra.dev",
+        "password": "test1234",
+        "name": "Yeni Kullanıcı",
+    })
+    assert resp.status_code == 200
+    token = resp.json()["access_token"]
+    me = client.get("/api/auth/me", headers=_headers(token))
+    assert me.status_code == 200
+    assert me.json()["profile"] is None
 
 
 def test_register_duplicate_email():
@@ -138,6 +152,24 @@ def test_auth_me_invalid_token():
     assert resp.status_code == 401
 
 
+def test_deleted_user_tokens_are_rejected():
+    reg = _auth_register(email="deleted@wattra.dev")
+    user_id = reg.json()["user_id"]
+    access_token = reg.json()["access_token"]
+    refresh_token = reg.json()["refresh_token"]
+
+    con = sqlite3.connect(config.DB_PATH)
+    con.execute("DELETE FROM user WHERE id = ?", (user_id,))
+    con.commit()
+    con.close()
+
+    me = client.get("/api/auth/me", headers=_headers(access_token))
+    refreshed = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+
+    assert me.status_code == 401
+    assert refreshed.status_code == 401
+
+
 # --- Profile update (PUT /api/auth/me) ---
 
 def test_update_profile():
@@ -208,3 +240,29 @@ def test_cross_user_profile_access_denied():
 
     resp = client.get(f"/api/profile/{uid2}", headers=_headers(token1))
     assert resp.status_code == 403
+
+
+def test_init_db_migrates_pre_auth_user_table(tmp_path, monkeypatch):
+    legacy_db = tmp_path / "legacy.db"
+    con = sqlite3.connect(legacy_db)
+    con.execute(
+        "CREATE TABLE user ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "profile TEXT NOT NULL, "
+        "created TEXT NOT NULL)"
+    )
+    con.commit()
+    con.close()
+
+    monkeypatch.setattr(config, "DB_PATH", str(legacy_db))
+    from app import db
+
+    db.init_db()
+
+    con = sqlite3.connect(legacy_db)
+    cols = {row[1] for row in con.execute("PRAGMA table_info(user)").fetchall()}
+    indexes = {row[1] for row in con.execute("PRAGMA index_list(user)").fetchall()}
+    con.close()
+
+    assert {"email", "password_hash", "name", "is_admin"} <= cols
+    assert "idx_user_email_unique" in indexes

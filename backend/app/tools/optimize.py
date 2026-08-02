@@ -36,6 +36,7 @@ from ..schemas import (
     ProductionForecast,
     Tariff,
 )
+from .device_state import is_schedulable
 
 # No trained artifact backs this algorithm (unlike production/consumption
 # model_version) — bump by hand whenever the placement/coordinate-descent
@@ -190,7 +191,11 @@ def optimize(production: ProductionForecast, consumption: ConsumptionForecast,
         return options
 
     # --- Device placement (largest load first) ---
-    for device in sorted(profile.devices, key=lambda d: d.kwh, reverse=True):
+    schedulable_devices = [
+        device for device in profile.devices
+        if is_schedulable(device, production.date)
+    ]
+    for device in sorted(schedulable_devices, key=lambda d: d.kwh, reverse=True):
         duration = _effective_duration(device)
         options = _placements(device, duration, net)
         if not options and duration != device.duration_h:

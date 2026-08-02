@@ -1,17 +1,11 @@
-"""get_weather tool — Open-Meteo live weather/irradiance data.
+"""Open-Meteo live weather and irradiance data.
 
-Requires no API key. Serves both as the agent's live tool and (via the
-historical endpoint) as the DS team's model training data source.
-On network error the last successful response is returned from cache; if that
-is missing too, a seasonal synthetic profile is generated so the product never
-shows an empty screen.
+Planning is deliberately strict: stale or generated weather must never be
+presented as a current energy plan. If the provider is unavailable, callers
+receive a service-unavailable error and can retry.
 """
 
-import json
 import logging
-import math
-import os
-import tempfile
 from datetime import date
 from zoneinfo import ZoneInfo
 
@@ -21,46 +15,11 @@ from ..schemas import Weather
 
 log = logging.getLogger(__name__)
 
-_CACHE = os.path.join(tempfile.gettempdir(), "wattra_weather_cache.json")
 _URL = "https://api.open-meteo.com/v1/forecast"
 
 
-def _write_cache(key: str, data: dict) -> None:
-    try:
-        current = {}
-        if os.path.exists(_CACHE):
-            try:
-                with open(_CACHE, encoding="utf-8") as f:
-                    current = json.load(f)
-            except json.JSONDecodeError:
-                current = {}  # corrupt cache (e.g. interrupted write) — start fresh
-        current[key] = data
-        with open(_CACHE, "w", encoding="utf-8") as f:
-            json.dump(current, f)
-    except OSError:
-        pass
-
-
-def _read_cache(key: str) -> dict | None:
-    try:
-        with open(_CACHE, encoding="utf-8") as f:
-            return json.load(f).get(key)
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-def _synthetic(day: date) -> dict:
-    """No network at all: a rough clear-sky profile by season."""
-    day_no = day.timetuple().tm_yday
-    season = math.sin(math.pi * (day_no - 80) / 365)  # midsummer ~1
-    peak = 550 + 400 * max(season, 0)
-    irradiance = [max(0.0, peak * math.sin(math.pi * (h - 5.5) / 13)) if 6 <= h <= 19 else 0.0
-                  for h in range(24)]
-    temp = [12 + 12 * max(season, 0) + 6 * math.sin(math.pi * (h - 9) / 12) for h in range(24)]
-    # "detail" describes how this dict was produced (for cache debugging only);
-    # it is NOT the Weather.source value returned by get_weather() below.
-    return {"irradiance": irradiance, "temp": temp, "cloud": [20.0] * 24,
-            "detail": "synthetic"}
+class WeatherUnavailableError(RuntimeError):
+    """Raised when a complete, current forecast cannot be obtained."""
 
 
 def _current_hour() -> int:
@@ -90,12 +49,6 @@ def _apply_current_conditions(day: date, data: dict, current: dict | None) -> di
 
 
 def get_weather(lat: float, lon: float, day: date) -> Weather:
-    key = f"{lat:.2f},{lon:.2f},{day.isoformat()}"
-    # `source` is the Weather.source contract value (live/cached/synthetic) the
-    # rest of the product relies on for data-quality disclosure; it is set once
-    # below and never touched by the "detail" key inside `data` (that one is
-    # cache-debugging metadata only).
-    source = "live"
     try:
         resp = httpx.get(_URL, params={
             "latitude": lat,
@@ -115,22 +68,22 @@ def get_weather(lat: float, lon: float, day: date) -> Weather:
             "cloud": hourly["cloud_cover"][:24],
             "detail": "forecast",
         }
+        if any(len(data[name]) != 24 or any(value is None for value in data[name])
+               for name in ("irradiance", "temp", "cloud")):
+            raise ValueError("Open-Meteo returned an incomplete hourly forecast")
         data = _apply_current_conditions(day, data, body.get("current"))
-        _write_cache(key, data)
-    except (httpx.HTTPError, KeyError) as err:
-        log.warning("Open-Meteo unreachable (%s), using cache/synthetic", err)
-        cached = _read_cache(key)
-        data = cached or _synthetic(day)
-        source = "cached" if cached else "synthetic"
+    except (httpx.HTTPError, KeyError, TypeError, ValueError) as err:
+        log.warning("Open-Meteo forecast unavailable: %s", err)
+        raise WeatherUnavailableError("Güncel hava tahmini alınamadı") from err
 
     return Weather(
         date=day,
-        irradiance_wm2=[float(x or 0) for x in data["irradiance"]],
-        temp_c=[float(x or 15) for x in data["temp"]],
-        cloud_pct=[float(x or 0) for x in data["cloud"]],
+        irradiance_wm2=[float(x) for x in data["irradiance"]],
+        temp_c=[float(x) for x in data["temp"]],
+        cloud_pct=[float(x) for x in data["cloud"]],
         current_hour=data.get("current_hour"),
         current_irradiance_wm2=data.get("current_irradiance"),
         current_temp_c=data.get("current_temp"),
         current_cloud_pct=data.get("current_cloud"),
-        source=source,
+        source="live",
     )

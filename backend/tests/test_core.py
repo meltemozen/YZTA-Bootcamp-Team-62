@@ -4,13 +4,15 @@ No network — weather is built by hand and behaviour is deterministic.
 Run: inside backend/ `python -m pytest tests/ -v`
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from app import config
 from app.schemas import CustomTariff, Device, HouseholdProfile, Weather
 from app.tools.consumption import forecast_consumption
+from app.tools.device_state import running_remaining_hours
 from app.tools.optimize import optimize
 from app.tools.production import forecast_production
 from app.tools.tariff import get_tariff, time_band
@@ -467,3 +469,50 @@ def test_every_device_stays_inside_its_own_window():
         assert item.start_h >= earliest
         end = item.end_h if item.end_h > item.start_h else item.end_h + 24
         assert end <= latest + 1
+
+
+def test_disabled_device_is_not_scheduled():
+    device = Device(
+        name="Atölye cihazı", kwh=3.0, power_kw=1.5, duration_h=2,
+        earliest=8, latest=20, enabled=False, user_defined=True,
+    )
+    profile = make_profile(devices=[device])
+    production = forecast_production(sunny_weather(), profile.panel_kw)
+    consumption = forecast_consumption(profile, DAY)
+    tariff = get_tariff(DAY, "home", "single", monthly_kwh=profile.monthly_bill_kwh)
+
+    plan = optimize(production, consumption, tariff, profile)
+
+    assert all(item.name != device.name for item in plan.items)
+
+
+def test_running_state_expires_after_declared_cycle():
+    now = datetime.now(ZoneInfo("Europe/Istanbul"))
+    device = Device(
+        name="Pompa", kwh=2.0, power_kw=1.0, duration_h=2,
+        is_running=True, status_updated_at=now, user_defined=True,
+    )
+
+    assert running_remaining_hours(device, now.date(), now) == 2
+    assert running_remaining_hours(device, now.date() + timedelta(days=1), now) == 0
+    assert running_remaining_hours(device, now.date(), now + timedelta(hours=2)) == 0
+
+
+def test_running_device_is_observed_but_not_scheduled_again_today():
+    now = datetime.now(ZoneInfo("Europe/Istanbul"))
+    device = Device(
+        name="Çalışan pompa", kwh=2.0, power_kw=1.0, duration_h=2,
+        earliest=0, latest=23, is_running=True, status_updated_at=now,
+        user_defined=True,
+    )
+    profile = make_profile(devices=[device])
+    weather = sunny_weather().model_copy(update={"date": now.date()})
+    production = forecast_production(weather, profile.panel_kw)
+    consumption = forecast_consumption(profile, now.date())
+    tariff = get_tariff(now.date(), "home", "single",
+                         monthly_kwh=profile.monthly_bill_kwh)
+
+    plan = optimize(production, consumption, tariff, profile, current_hour=0)
+
+    assert all(item.name != device.name for item in plan.items)
+    assert consumption.total_kwh > 0

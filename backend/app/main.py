@@ -10,7 +10,7 @@ Endpoints map one-to-one to the mobile app screens:
 
   POST /api/register        → Onboarding (legacy, backward-compatible)
   GET  /api/plan/{id}       → Today screen (fast plan, no agent)
-  POST /api/assistant       → Assistant chat (Gemini agent / fallback)
+  POST /api/assistant       → Assistant chat (Gemini or Ollama)
   GET  /api/report/{id}     → Monthly report (counterfactual + CO2)
   GET  /api/notifications/{id} → Proactive alerts
   POST /api/feedback        → "applied / not applied"
@@ -24,23 +24,26 @@ import sqlite3
 import time
 from datetime import date, timedelta
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import config, db
 from .agent import assistant_reply
 from .agent.context import ToolContext
+from .agent.orchestrator import AssistantUnavailableError
 from .auth import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    get_current_admin_user_id,
     get_current_user_id,
     hash_password,
     require_same_user,
     verify_password,
 )
-from .model_manifest import load_manifest
 from .schemas import (
     AssistantRequest,
     AssistantResponse,
@@ -59,10 +62,16 @@ from .schemas import (
     UserProfileResponse,
     WeatherCheck,
 )
+from .security import client_ip, limiter
+from .services.geocoding import (
+    GeocodingUnavailableError,
+    resolve_location,
+    reverse_location,
+)
 from .services.notifications import notifications
 from .services.report import monthly_report
 from .tools.production import forecast_production
-from .tools.weather import get_weather
+from .tools.weather import WeatherUnavailableError, get_weather
 
 APP_VERSION = "0.2.0"
 
@@ -71,8 +80,15 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-app = FastAPI(title="Wattra API", version=APP_VERSION,
-              description="Rooftop-PV energy assistant — tailored for Turkey")
+_docs_enabled = os.getenv("WATTRA_ENABLE_DOCS", "0").lower() in ("1", "true", "yes")
+app = FastAPI(
+    title="Wattra API",
+    version=APP_VERSION,
+    description="Rooftop-PV energy assistant — tailored for Turkey",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 
 # CORS origins are env-driven for production: set WATTRA_CORS_ORIGINS to a
 # comma-separated allow-list (e.g. the deployed web URL). Defaults to "*" for
@@ -81,8 +97,49 @@ _origins = os.getenv("WATTRA_CORS_ORIGINS", "*").strip()
 _allow_origins = ["*"] if _origins == "*" else [o.strip() for o in _origins.split(",") if o.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_allow_origins, allow_methods=["*"],
                    allow_headers=["*"])
+_allowed_hosts = [
+    host.strip() for host in os.getenv(
+        "WATTRA_ALLOWED_HOSTS", "api.altspacelabs.com,localhost,127.0.0.1,testserver"
+    ).split(",") if host.strip()
+]
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
 
 log = logging.getLogger("wattra.api")
+
+
+@app.middleware("http")
+async def security_controls(request: Request, call_next):
+    ip = client_ip(request.headers, request.client.host if request.client else "unknown")
+    path = request.url.path
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > 262_144:
+        return JSONResponse(status_code=413, content={"detail": "İstek boyutu çok büyük."})
+
+    rules = [(f"global:{ip}", 180, 60)]
+    if path == "/api/auth/login" and ip != "testclient":
+        rules.append((f"login:{ip}", 10, 60))
+    if path == "/api/auth/register" and ip != "testclient":
+        rules.append((f"register:{ip}", 5, 3600))
+    if path == "/api/assistant" and ip != "testclient":
+        rules.append((f"assistant:{ip}", 6, 60))
+    if path.startswith("/api/locations/") and ip != "testclient":
+        rules.append((f"locations:{ip}", 10, 60))
+    for key, limit, window_s in rules:
+        allowed, retry_after = limiter.check(key, limit, window_s)
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Çok fazla istek gönderildi. Lütfen biraz bekleyin."},
+                headers={"Retry-After": str(retry_after)},
+            )
+
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(self)"
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+    return response
 
 
 @app.middleware("http")
@@ -104,6 +161,27 @@ async def unhandled_exception(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Sunucuda bir hata oluştu."})
 
 
+@app.exception_handler(WeatherUnavailableError)
+async def weather_unavailable(request: Request, exc: WeatherUnavailableError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Güncel hava tahmini alınamadı. Lütfen biraz sonra tekrar deneyin."},
+    )
+
+
+@app.exception_handler(AssistantUnavailableError)
+async def assistant_unavailable(request: Request, exc: AssistantUnavailableError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Asistan şu anda yanıt veremiyor. Lütfen biraz sonra tekrar deneyin."},
+    )
+
+
+@app.exception_handler(GeocodingUnavailableError)
+async def geocoding_unavailable(request: Request, exc: GeocodingUnavailableError):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
 # The schema is prepared at import time (works in every environment incl. TestClient)
 db.init_db()
 
@@ -114,13 +192,11 @@ db.init_db()
 
 @app.get("/api/health")
 def health():
-    agent = "gemini" if config.GEMINI_API_KEY else "ollama" if config.OLLAMA_ENABLED else "fallback"
-    models = {name: entry.model_dump() for name, entry in load_manifest().items()}
-    return {"status": "ok", "version": APP_VERSION, "agent": agent, "models": models}
+    return {"status": "ok", "version": APP_VERSION}
 
 
 @app.get("/api/model-versions")
-def model_versions():
+def model_versions(_uid: int = Depends(get_current_admin_user_id)):
     """Transparency endpoint: returns every model/optimizer version in use."""
     manifest_path = os.path.join(os.path.dirname(__file__), "models", "manifest.json")
     try:
@@ -159,7 +235,8 @@ def auth_register(req: AuthRegisterRequest):
         refresh_token=create_refresh_token(user_id),
         user_id=user_id,
         name=req.name,
-        message=f"Hoş geldin! {req.profile.panel_kw} kW'lık sistemin için hazırım.",
+        is_admin=False,
+        message="Hesabın oluşturuldu.",
     )
 
 
@@ -176,6 +253,7 @@ def auth_login(req: AuthLoginRequest):
         refresh_token=create_refresh_token(user["id"]),
         user_id=user["id"],
         name=user.get("name", ""),
+        is_admin=bool(user.get("is_admin")),
         message="Tekrar hoş geldin!",
     )
 
@@ -189,12 +267,13 @@ def auth_refresh(req: RefreshRequest):
     user_id = int(payload["sub"])
     info = db.get_user_auth_info(user_id)
     if not info:
-        raise HTTPException(404, "Kullanıcı bulunamadı")
+        raise HTTPException(401, "Oturum geçersiz — lütfen tekrar giriş yapın")
     return TokenResponse(
         access_token=create_access_token(user_id),
         refresh_token=create_refresh_token(user_id),
         user_id=user_id,
         name=info.get("name", ""),
+        is_admin=bool(info.get("is_admin")),
         message="Token yenilendi",
     )
 
@@ -209,7 +288,9 @@ def auth_me(uid: int = Depends(get_current_user_id)):
         user_id=info["id"],
         email=info.get("email", ""),
         name=info.get("name", ""),
-        profile=HouseholdProfile.model_validate_json(info["profile"]),
+        is_admin=bool(info.get("is_admin")),
+        profile=(None if info["profile"] in (None, "null", "")
+                 else HouseholdProfile.model_validate_json(info["profile"])),
     )
 
 
@@ -241,7 +322,9 @@ def auth_update_me(req: ProfileUpdateRequest,
         user_id=info["id"],
         email=info.get("email", ""),
         name=info.get("name", ""),
-        profile=HouseholdProfile.model_validate_json(info["profile"]),
+        is_admin=bool(info.get("is_admin")),
+        profile=(None if info["profile"] in (None, "null", "")
+                 else HouseholdProfile.model_validate_json(info["profile"])),
     )
 
 
@@ -261,10 +344,11 @@ def auth_change_password(req: PasswordChangeRequest,
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Weather check (public — no auth required)
+# Weather diagnostics (admin only)
 # ──────────────────────────────────────────────────────────────────────────────
 @app.get("/api/weather-check", response_model=WeatherCheck)
-def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "today"):
+def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "today",
+                  _uid: int = Depends(get_current_admin_user_id)):
     if day in ("today", "bugun", "bugün"):
         target = date.today()
     elif day in ("tomorrow", "yarin", "yarın"):
@@ -293,12 +377,32 @@ def weather_check(lat: float, lon: float, panel_kw: float = 5.0, day: str = "tod
     )
 
 
+@app.get("/api/locations/resolve")
+def location_resolve(
+    province: str = Query(min_length=2, max_length=40),
+    district: str = Query(min_length=2, max_length=60),
+    _uid: int = Depends(get_current_user_id),
+):
+    return resolve_location(province, district)
+
+
+@app.get("/api/locations/reverse")
+def location_reverse(
+    lat: float = Query(ge=35.0, le=43.0),
+    lon: float = Query(ge=25.0, le=46.0),
+    _uid: int = Depends(get_current_user_id),
+):
+    return reverse_location(lat, lon)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Legacy register (backward-compatible — no auth)
 # ──────────────────────────────────────────────────────────────────────────────
 
 @app.post("/api/register", response_model=RegisterResponse)
 def register(req: RegisterRequest):
+    if os.getenv("WATTRA_ENABLE_LEGACY_REGISTER", "0") != "1":
+        raise HTTPException(404, "Endpoint bulunamadı")
     user_id = db.add_user(req.profile)
     return RegisterResponse(user_id=user_id,
                             message=f"Hoş geldin! {req.profile.panel_kw} kW'lık sistemin için hazırım.")
@@ -344,7 +448,7 @@ def daily_plan(user_id: int, day: str = "today",
 
 @app.post("/api/assistant", response_model=AssistantResponse)
 def assistant(req: AssistantRequest,
-              token_uid: int = Depends(get_current_user_id)):
+              token_uid: int = Depends(get_current_admin_user_id)):
     require_same_user(token_uid, req.user_id)
     profile = db.get_user(req.user_id)
     if not profile:
@@ -385,3 +489,13 @@ def device_catalog():
     path = os.path.join(os.path.dirname(__file__), "data", "devices.json")
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+# Keep API routes above this mount. The local production export is served by
+# the same Cloudflare hostname, so web and API share one hardened origin.
+_default_web_dist = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "mobile", "dist")
+)
+_web_dist = os.getenv("WATTRA_WEB_DIST", _default_web_dist)
+if os.path.isfile(os.path.join(_web_dist, "index.html")):
+    app.mount("/", StaticFiles(directory=_web_dist, html=True), name="web")

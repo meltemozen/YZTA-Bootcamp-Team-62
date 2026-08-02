@@ -15,7 +15,7 @@ import bcrypt
 import jwt
 from fastapi import HTTPException, Request
 
-from . import config
+from . import config, db
 
 # ---------------------------------------------------------------------------
 # Password hashing (bcrypt)
@@ -107,13 +107,22 @@ def get_current_user_id(request: Request) -> int:
     if payload.get("type") != "access":
         raise HTTPException(401, "Erişim token'ı bekleniyor (access token)")
     try:
-        return int(payload["sub"])
+        user_id = int(payload["sub"])
     except (KeyError, ValueError):
         raise HTTPException(401, "Token geçersiz — kullanıcı kimliği bulunamadı")
+    if not db.get_user_auth_info(user_id):
+        raise HTTPException(401, "Oturum geçersiz — lütfen tekrar giriş yapın")
+    return user_id
+
+
+def get_current_admin_user_id(request: Request) -> int:
+    user_id = get_current_user_id(request)
+    if not db.is_user_admin(user_id):
+        raise HTTPException(403, "Bu özellik yalnızca yönetici hesabına açıktır")
+    return user_id
 
 
 def require_same_user(token_user_id: int, requested_user_id: int) -> None:
     """Raise 403 if the token owner is not the user being accessed."""
     if token_user_id != requested_user_id:
         raise HTTPException(403, "Başka kullanıcının verisine erişim engellendi")
-

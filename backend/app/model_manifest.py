@@ -3,9 +3,8 @@
 Read-only diagnostics layer (docs/SPRINTS.md TDB-4): describes what's actually
 deployed for each of the three model/algorithm components (production,
 consumption, optimizer) — version, training date, metrics, data provenance.
-Surfaced via /api/health. A missing/malformed manifest degrades to an empty
-dict rather than breaking the health endpoint, matching the rest of the
-product's fallback philosophy (see tools/weather.py, tools/production.py).
+Surfaced via /api/health. A missing or malformed manifest is reported as an
+empty diagnostics result without affecting the customer-facing endpoints.
 """
 
 import json

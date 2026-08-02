@@ -1,6 +1,4 @@
-"""get_tariff tool — price adapter for Turkey tariffs + optional price vectors.
-
-Not a dataset; a public table read from config.py.
+"""Price adapter for user-entered Turkey tariffs and optional price vectors.
 
 Turkey rules (July 2026):
 * Residential/commercial SINGLE-rate tariff is tiered → the low/high tier price
@@ -56,53 +54,56 @@ def _external_price_vector(day: date) -> Tariff | None:
 def get_tariff(day: date, user_type: str = "home",
                tariff_type: str = "single",
                monthly_kwh: float | None = None,
-               custom: CustomTariff | None = None) -> Tariff:
+               custom: CustomTariff | None = None,
+               require_user_prices: bool = False) -> Tariff:
     external = _external_price_vector(day)
     if external:
         return external
+
+    if require_user_prices:
+        has_buy_prices = bool(custom and (
+            custom.single if tariff_type == "single"
+            else custom.day and custom.peak and custom.night
+        ))
+        if not has_buy_prices or custom.sell is None:
+            raise ValueError("Faturadaki tarife fiyatları eksik")
 
     group = "residential" if user_type == "home" else "commercial"
     table = config.TARIFF[group]
 
     if tariff_type == "three_zone":
-        prices = [table["three_zone"][time_band(h)] for h in range(24)]
         bands = [time_band(h) for h in range(24)]
+        prices = [table["three_zone"][bands[h]] for h in range(24)]
     else:
-        # Tier: if monthly consumption exceeds threshold, marginal price is high tier
-        threshold = table["tier_threshold_kwh_month"]
-        unit = (table["single_high"]
-                if (monthly_kwh or 0) > threshold else table["single_low"])
-        prices = [unit] * 24
         bands = ["flat"] * 24
+        threshold = table["tier_threshold_kwh_month"]
+        unit = table["single_high"] if (monthly_kwh or 0) > threshold else table["single_low"]
+        prices = [unit] * 24
 
-    # The user's own bill beats our snapshot of the EPDK table, per band and
-    # only where they actually supplied a number.
     overrides = _price_overrides(custom, tariff_type)
     if overrides:
         prices = [overrides.get(bands[h], prices[h]) for h in range(24)]
 
-    if custom and custom.sell:
+    if custom and custom.sell is not None:
         sell = [custom.sell] * 24
     else:
         sell = [round(p * config.NETMETER_SELL_RATIO, 4) for p in prices]
 
-    user_priced = bool(overrides) or bool(custom and custom.sell)
     return Tariff(
         date=day,
         hourly_price=prices,
         hourly_sell_price=sell,
         avg_sell_price=round(sum(sell) / 24, 4),  # back-compat: average
         band=bands,
-        source=f"{'user-defined' if user_priced else 'turkey-regulated'}-{tariff_type}",
+        source=f"{'user-defined' if overrides or (custom and custom.sell is not None) else 'turkey-regulated'}-{tariff_type}",
     )
 
 
 def _price_overrides(custom: CustomTariff | None, tariff_type: str) -> dict[str, float]:
-    """Band → user price, for the bands the user actually filled in."""
     if custom is None:
         return {}
     if tariff_type == "three_zone":
         pairs = {"day": custom.day, "peak": custom.peak, "night": custom.night}
     else:
         pairs = {"flat": custom.single}
-    return {band: price for band, price in pairs.items() if price}
+    return {band: price for band, price in pairs.items() if price is not None}

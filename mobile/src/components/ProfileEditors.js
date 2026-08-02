@@ -4,7 +4,11 @@
 
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
-import { TOUCH } from './States';
+import {
+  DeviceStatusControls, FlexibilityToggle, ManualDeviceForm,
+} from './DeviceControls';
+import LocationPicker from './LocationPicker';
+import { InlineNotice, TOUCH } from './States';
 import { spacing, font, card, colors, text } from '../theme';
 
 function Field({ label, value, onChange, placeholder, error }) {
@@ -65,32 +69,176 @@ const num = (s) => {
   return Number.isFinite(v) && v > 0 ? v : null;
 };
 
-/** Lets the user replace our built-in EPDK snapshot with the prices on their
- *  own bill. Empty fields keep the regulated value, so partial entry is fine. */
+const nonNegative = (s) => {
+  const value = parseFloat(String(s).replace(',', '.'));
+  return Number.isFinite(value) && value >= 0 ? value : null;
+};
+
+export function LocationEditor({ profile, onSave }) {
+  const savedLocation = { name: profile.city, lat: profile.lat, lon: profile.lon };
+  const [editing, setEditing] = useState(false);
+  const [location, setLocation] = useState(savedLocation);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async () => {
+    if (!location?.name || !Number.isFinite(location.lat) || !Number.isFinite(location.lon)) {
+      setError('Kaydetmeden önce sistem konumunu belirle.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const saved = await onSave({
+        ...profile,
+        city: location.name,
+        lat: location.lat,
+        lon: location.lon,
+      });
+      if (saved === false) {
+        setError('Konum kaydedilemedi. Bağlantını kontrol edip yeniden dene.');
+        return;
+      }
+      setEditing(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = () => {
+    setLocation(savedLocation);
+    setError('');
+    setEditing(false);
+  };
+
+  return (
+    <View style={card}>
+      <Text style={text.label}>Sabit sistem konumu</Text>
+      {!editing ? (
+        <>
+          <Text style={[text.body, { color: colors.ink, marginTop: spacing.s }]}>
+            {profile.city}
+          </Text>
+          <Text style={[text.small, { marginTop: 5, lineHeight: 18 }]}>
+            Hava durumu ve üretim tahminleri bu kayıtlı konumdan hesaplanır.
+            Uygulama her açılışta GPS kullanmaz.
+          </Text>
+          <View style={{ marginTop: spacing.m }}>
+            <ActionButton label="Konumu değiştir" onPress={() => setEditing(true)} />
+          </View>
+        </>
+      ) : (
+        <View style={{ marginTop: spacing.m }}>
+          <LocationPicker
+            value={location}
+            onChange={setLocation}
+            placeLabel={profile.user_type === 'business' ? 'İşyerinin' : 'Evinin'}
+          />
+          <InlineNotice tone="error" message={error} />
+          <View style={{ flexDirection: 'row', gap: spacing.s }}>
+            <View style={{ flex: 1 }}>
+              <ActionButton
+                label="Yeni konumu kaydet"
+                tone="primary"
+                busy={busy}
+                onPress={save}
+              />
+            </View>
+            <ActionButton label="Vazgeç" disabled={busy} onPress={cancel} />
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+export function SystemEditor({ profile, onSave }) {
+  const [panel, setPanel] = useState(String(profile.panel_kw));
+  const [battery, setBattery] = useState(String(profile.battery_kwh));
+  const [batteryPower, setBatteryPower] = useState(String(profile.battery_power_kw));
+  const [monthly, setMonthly] = useState(String(profile.monthly_bill_kwh));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async () => {
+    const panelValue = num(panel);
+    const batteryValue = nonNegative(battery);
+    const powerValue = nonNegative(batteryPower);
+    const monthlyValue = num(monthly);
+    if (panelValue === null || batteryValue === null || powerValue === null || monthlyValue === null) {
+      setError('Sistem değerlerini sıfır veya daha büyük geçerli sayılarla doldur.');
+      return;
+    }
+    if (batteryValue === 0 && powerValue > 0) {
+      setError('Batarya kapasitesi 0 ise batarya gücü de 0 olmalı.');
+      return;
+    }
+    setError('');
+    setBusy(true);
+    try {
+      await onSave({
+        ...profile,
+        panel_kw: panelValue,
+        battery_kwh: batteryValue,
+        battery_power_kw: powerValue,
+        monthly_bill_kwh: monthlyValue,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={card}>
+      <Text style={text.label}>Enerji sistemim</Text>
+      <Text style={[text.small, { marginTop: spacing.s, lineHeight: 17 }]}>
+        Panel, batarya ve son faturandaki tüketim değerlerini güncel tut.
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s, marginTop: spacing.m }}>
+        <Field label="Panel gücü (kW)" value={panel} onChange={setPanel} />
+        <Field label="Batarya (kWh)" value={battery} onChange={setBattery} />
+        <Field label="Batarya gücü (kW)" value={batteryPower} onChange={setBatteryPower} />
+        <Field label="Aylık tüketim (kWh)" value={monthly} onChange={setMonthly} />
+      </View>
+      {error ? <Text style={[text.small, { color: colors.critical, marginTop: spacing.s }]}>{error}</Text> : null}
+      <View style={{ marginTop: spacing.m }}>
+        <ActionButton label="Sistem bilgilerimi kaydet" tone="primary" busy={busy} onPress={save} />
+      </View>
+    </View>
+  );
+}
+
+/** Lets the user keep the optimizer aligned with the prices on their bill. */
 export function TariffEditor({ profile, onSave }) {
   const existing = profile.custom_tariff || {};
   const [single, setSingle] = useState(existing.single ? String(existing.single) : '');
   const [day, setDay] = useState(existing.day ? String(existing.day) : '');
   const [peak, setPeak] = useState(existing.peak ? String(existing.peak) : '');
   const [night, setNight] = useState(existing.night ? String(existing.night) : '');
-  const [sell, setSell] = useState(existing.sell ? String(existing.sell) : '');
+  const [sell, setSell] = useState(existing.sell != null ? String(existing.sell) : '');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   const threeZone = profile.tariff_type === 'three_zone';
 
-  const save = async (clear) => {
+  const save = async () => {
+    const sellValue = String(sell).trim() === '0' ? 0 : num(sell);
+    const required = threeZone ? [num(day), num(peak), num(night)] : [num(single)];
+    if (required.some((value) => value === null) || sellValue === null) {
+      setError('Faturandaki geçerli birim fiyatları eksiksiz gir.');
+      return;
+    }
+    setError('');
     setBusy(true);
     try {
-      const custom = clear ? null : {
+      const custom = {
         single: threeZone ? null : num(single),
         day: threeZone ? num(day) : null,
         peak: threeZone ? num(peak) : null,
         night: threeZone ? num(night) : null,
-        sell: num(sell),
+        sell: sellValue,
       };
-      const empty = !custom || Object.values(custom).every((v) => v === null);
-      await onSave({ ...profile, custom_tariff: empty ? null : custom });
-      if (clear) { setSingle(''); setDay(''); setPeak(''); setNight(''); setSell(''); }
+      await onSave({ ...profile, custom_tariff: custom });
     } finally {
       setBusy(false);
     }
@@ -100,37 +248,34 @@ export function TariffEditor({ profile, onSave }) {
     <View style={card}>
       <Text style={text.label}>Kendi tarifem</Text>
       <Text style={[text.small, { marginTop: spacing.s, lineHeight: 17 }]}>
-        Uygulamadaki fiyatlar EPDK'nın 4 Nisan 2026 tablosundan gelir. Faturandaki
-        birim fiyat farklıysa buraya yaz — tasarruf hesabı senin fiyatınla yapılır.
-        Boş bıraktığın alanlar varsayılan tarifeden devam eder.
+        Faturandaki vergiler dahil birim fiyatları gir. Planın maliyet hesabı doğrudan
+        bu değerlerle güncellenir.
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s,
                      marginTop: spacing.m }}>
         {threeZone ? (
           <>
-            <Field label="Gündüz 06-17" value={day} onChange={setDay} placeholder="5.57" />
-            <Field label="Puant 17-22" value={peak} onChange={setPeak} placeholder="7.85" />
-            <Field label="Gece 22-06" value={night} onChange={setNight} placeholder="3.74" />
+            <Field label="Gündüz 06-17" value={day} onChange={setDay} placeholder="TL/kWh" />
+            <Field label="Puant 17-22" value={peak} onChange={setPeak} placeholder="TL/kWh" />
+            <Field label="Gece 22-06" value={night} onChange={setNight} placeholder="TL/kWh" />
           </>
         ) : (
-          <Field label="Birim fiyat" value={single} onChange={setSingle} placeholder="4.86" />
+          <Field label="Birim fiyat" value={single} onChange={setSingle} placeholder="TL/kWh" />
         )}
-        <Field label="Satış (mahsup)" value={sell} onChange={setSell} placeholder="otomatik" />
+        <Field label="Satış (mahsup)" value={sell} onChange={setSell} placeholder="0" />
       </View>
       <Text style={[text.small, { marginTop: 6 }]}>
-        TL/kWh, vergiler dahil. Satış fiyatını bilmiyorsan boş bırak — alış
-        fiyatının ~%70'i olarak hesaplanır.
+        Şebekeye satış bedelini faturandaki veya sözleşmendeki değerden gir. Satış
+        anlaşman yoksa 0 yaz.
       </Text>
+      {error ? <Text style={[text.small, { marginTop: 6, color: colors.critical }]}>{error}</Text> : null}
 
       <View style={{ flexDirection: 'row', gap: spacing.s, marginTop: spacing.m }}>
         <View style={{ flex: 1 }}>
           <ActionButton label="Fiyatlarımı kaydet" tone="primary" busy={busy}
-                        onPress={() => save(false)} />
+                        onPress={save} />
         </View>
-        {profile.custom_tariff ? (
-          <ActionButton label="Varsayılana dön" onPress={() => save(true)} disabled={busy} />
-        ) : null}
       </View>
     </View>
   );
@@ -143,6 +288,10 @@ export function DeviceEditor({ profile, catalog, onSave }) {
   const [devices, setDevices] = useState(profile.devices || []);
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState('');
+  const [showManual, setShowManual] = useState(false);
+  const [statusBusy, setStatusBusy] = useState('');
+  const [statusNotice, setStatusNotice] = useState('');
 
   const update = (index, patch) => {
     setDevices((current) =>
@@ -156,22 +305,83 @@ export function DeviceEditor({ profile, catalog, onSave }) {
   };
 
   const add = (device) => {
-    setDevices((current) => [...current, device]);
+    setDevices((current) => [...current, {
+      ...device,
+      enabled: device.enabled !== false,
+      is_running: !!device.is_running,
+      status_updated_at: device.status_updated_at || null,
+      user_defined: !!device.user_defined,
+    }]);
     setDirty(true);
   };
 
+  const persistStatus = async (index, patch) => {
+    const device = devices[index];
+    const previous = devices;
+    const next = devices.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, ...patch } : item);
+    setDevices(next);
+    setStatusNotice('');
+
+    const savedDevice = (profile.devices || []).find((item) => item.name === device.name);
+    if (!savedDevice) {
+      setDirty(true);
+      return;
+    }
+
+    setStatusBusy(device.name);
+    const persisted = profile.devices.map((item) =>
+      item.name === device.name ? { ...item, ...patch } : item);
+    const saved = await onSave({ ...profile, devices: persisted }, { silent: true });
+    if (saved === false) {
+      setDevices(previous);
+      setError('Cihaz durumu kaydedilemedi. Bağlantını kontrol edip yeniden dene.');
+    } else {
+      setStatusNotice(
+        patch.is_running === true ? `${device.name} çalışıyor olarak işaretlendi.`
+          : patch.is_running === false ? `${device.name} kapalı olarak işaretlendi.`
+            : `${device.name} planlama ayarı güncellendi.`
+      );
+    }
+    setStatusBusy('');
+  };
+
   const save = async () => {
+    const invalid = devices.some((device) => {
+      const duration = num(device.duration_h);
+      const hasPower = String(device.power_kw ?? '').trim() !== '';
+      const earliest = Number(device.earliest);
+      const latest = Number(device.latest);
+      return num(device.kwh) === null || duration === null || duration > 12
+        || (hasPower && num(device.power_kw) === null)
+        || !Number.isInteger(earliest) || !Number.isInteger(latest)
+        || earliest < 0 || latest > 23 || earliest > latest
+        || earliest + Math.ceil(duration) - 1 > latest;
+    });
+    if (invalid) {
+      setError('Tüketim ve süre alanlarını cihaz etiketindeki geçerli değerlerle doldur.');
+      return;
+    }
+    setError('');
     setBusy(true);
     try {
-      // Empty/invalid numbers fall back to the value we started from rather
-      // than silently becoming 0 — a 0 kWh device would vanish from the plan.
       const cleaned = devices.map((d) => ({
         ...d,
-        kwh: num(d.kwh) ?? 1,
-        duration_h: Math.min(12, Math.max(1, Math.round(num(d.duration_h) ?? 1))),
-        power_kw: num(d.power_kw),
+        kwh: num(d.kwh),
+        duration_h: Math.round(num(d.duration_h)),
+        power_kw: String(d.power_kw ?? '').trim() === '' ? null : num(d.power_kw),
+        earliest: Number(d.earliest),
+        latest: Number(d.latest),
+        enabled: d.enabled !== false,
+        is_running: !!d.is_running,
+        status_updated_at: d.status_updated_at || null,
+        user_defined: !!d.user_defined,
       }));
-      await onSave({ ...profile, devices: cleaned });
+      const saved = await onSave({ ...profile, devices: cleaned });
+      if (saved === false) {
+        setError('Cihazlar kaydedilemedi. Bağlantını kontrol edip yeniden dene.');
+        return;
+      }
       setDevices(cleaned);
       setDirty(false);
     } finally {
@@ -180,7 +390,9 @@ export function DeviceEditor({ profile, catalog, onSave }) {
   };
 
   const owned = new Set(devices.map((d) => d.name));
-  const addable = (catalog || []).filter((c) => !owned.has(c.name));
+  const addable = (catalog || []).filter((device) =>
+    !owned.has(device.name)
+    && (profile.user_type === 'business' || !device.name.includes('işyeri')));
 
   return (
     <View style={card}>
@@ -204,13 +416,30 @@ export function DeviceEditor({ profile, catalog, onSave }) {
             <Text style={[text.subtitle, { flex: 1 }]}>{device.name}</Text>
             <ActionButton label="Çıkar" tone="danger" onPress={() => remove(index)} />
           </View>
-          <View style={{ flexDirection: 'row', gap: spacing.s, marginTop: spacing.s }}>
+          <DeviceStatusControls
+            device={device}
+            disabled={Boolean(statusBusy)}
+            onChange={(patch) => persistStatus(index, patch)}
+          />
+          <View style={{
+            flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s, marginTop: spacing.s,
+          }}>
             <Field label="kWh / çalışma" value={String(device.kwh ?? '')}
                    onChange={(v) => update(index, { kwh: v })} />
             <Field label="Süre (saat)" value={String(device.duration_h ?? '')}
                    onChange={(v) => update(index, { duration_h: v })} />
             <Field label="Güç (kW)" value={device.power_kw == null ? '' : String(device.power_kw)}
                    onChange={(v) => update(index, { power_kw: v })} placeholder="bilinmiyor" />
+            <Field label="En erken" value={String(device.earliest ?? 0)}
+                   onChange={(v) => update(index, { earliest: v })} />
+            <Field label="En geç bitiş" value={String(device.latest ?? 23)}
+                   onChange={(v) => update(index, { latest: v })} />
+          </View>
+          <View style={{ marginTop: spacing.s }}>
+            <FlexibilityToggle
+              value={device.flexibility || 'shiftable'}
+              onChange={(flexibility) => update(index, { flexibility })}
+            />
           </View>
         </View>
       ))}
@@ -241,8 +470,29 @@ export function DeviceEditor({ profile, catalog, onSave }) {
         </View>
       )}
 
+      <View style={{ marginTop: spacing.m }}>
+        <ActionButton label="Kendi cihazımı ekle" onPress={() => setShowManual(true)} />
+      </View>
+      {showManual ? (
+        <ManualDeviceForm
+          existingNames={devices.map((device) => device.name)}
+          onCancel={() => setShowManual(false)}
+          onAdd={(device) => {
+            add(device);
+            setShowManual(false);
+          }}
+        />
+      ) : null}
+
+      <InlineNotice tone="success" message={statusNotice} />
+
       {dirty && (
         <View style={{ marginTop: spacing.m }}>
+          {error ? (
+            <Text style={[text.small, { color: colors.critical, marginBottom: spacing.s }]}>
+              {error}
+            </Text>
+          ) : null}
           <ActionButton label="Cihazlarımı kaydet" tone="primary" busy={busy} onPress={save} />
         </View>
       )}

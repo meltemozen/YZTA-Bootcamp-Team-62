@@ -1,21 +1,76 @@
 // Backend API client with JWT authentication.
-// BASE_URL priority: address saved on the Settings screen → app.json extra.
-// When testing on a phone with Expo Go, use the computer's LOCAL NETWORK IP
-// (localhost is the phone itself!): e.g. http://192.168.1.34:8000
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
-// On web the default is the backend on the machine serving the page (localhost:8000).
-// On a phone (Expo Go): the address in app.json; changeable from the Settings screen.
-const DEFAULT_URL =
-  Platform.OS === 'web' && typeof window !== 'undefined'
-    ? `http://${window.location.hostname}:8000`
-    : Constants?.expoConfig?.extra?.apiUrl || 'http://192.168.1.100:8000';
+function cleanUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function hostFromUri(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+
+  const withoutScheme = text.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const host = withoutScheme
+    .split('/')[0]
+    .split('?')[0]
+    .replace(/^\[/, '')
+    .split(']')[0]
+    .split(':')[0];
+
+  return host;
+}
+
+function isLoopback(host) {
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
+function isLoopbackUrl(value) {
+  return isLoopback(hostFromUri(value));
+}
+
+function expoGoHost() {
+  const candidates = [
+    Constants?.expoConfig?.hostUri,
+    Constants?.manifest?.debuggerHost,
+    Constants?.manifest?.hostUri,
+    Constants?.manifest2?.extra?.expoClient?.hostUri,
+    Constants?.linkingUri,
+    Constants?.experienceUrl,
+    NativeModules?.SourceCode?.scriptURL,
+  ];
+
+  for (const value of candidates) {
+    const host = hostFromUri(value);
+    if (host && !isLoopback(host)) return host;
+  }
+
+  return '';
+}
+
+function defaultApiUrl() {
+  const configured = cleanUrl(Constants?.expoConfig?.extra?.apiUrl);
+
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return configured || `http://${window.location.hostname}:8000`;
+  }
+
+  if (__DEV__) {
+    const host = expoGoHost();
+    if (host && (!configured || isLoopbackUrl(configured))) {
+      return `http://${host}:8000`;
+    }
+  }
+
+  return configured;
+}
+
+const DEFAULT_URL = defaultApiUrl();
 
 export async function apiUrl() {
-  return (await AsyncStorage.getItem('apiUrl')) || DEFAULT_URL;
+  return DEFAULT_URL;
 }
 
 // --- Token storage helpers ---
@@ -55,6 +110,11 @@ export function setOnAuthExpired(cb) { _onAuthExpired = cb; }
 
 async function request(path, options = {}) {
   const base = await apiUrl();
+  if (!base) {
+    throw new Error(
+      'Bağlantı yapılandırması eksik. Lütfen uygulamayı güncelleyin.'
+    );
+  }
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
 
   // Attach Bearer token if available and not explicitly skipped
@@ -79,8 +139,15 @@ async function request(path, options = {}) {
   }
 
   if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`API ${resp.status}: ${body.slice(0, 200)}`);
+    let detail = '';
+    try {
+      detail = (await resp.json())?.detail || '';
+    } catch {
+      detail = '';
+    }
+    const error = new Error(detail || `İstek tamamlanamadı (${resp.status}).`);
+    error.status = resp.status;
+    throw error;
   }
   return resp.json();
 }
@@ -110,10 +177,10 @@ async function _tryRefresh() {
 
 export const api = {
   // Auth endpoints (no token needed for login/register)
-  authRegister: (email, password, name, profile) =>
+  authRegister: (email, password, name) =>
     request('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, name, profile }),
+      body: JSON.stringify({ email, password, name }),
       _skipAuth: true,
     }),
   authLogin: (email, password) =>
@@ -155,12 +222,16 @@ export const api = {
   report: (id, month) => request(`/api/report/${id}${month ? `?month=${month}` : ''}`),
   notifications: (id) => request(`/api/notifications/${id}`),
   deviceCatalog: () => request('/api/device-catalog', { _skipAuth: true }),
-  modelVersions: () => request('/api/model-versions', { _skipAuth: true }),
+  resolveLocation: (province, district) =>
+    request(`/api/locations/resolve?province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}`),
+  reverseLocation: (lat, lon) =>
+    request(`/api/locations/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`),
 };
 
 // Render the saving range readably: if the ends collapse when rounded ("1–1 TL")
 // show a single value.
 export function rangeTL(min, max) {
+  if (Math.abs(min) < 0.005 && Math.abs(max) < 0.005) return '0 TL';
   const a = min.toFixed(0);
   const b = max.toFixed(0);
   return a === b ? `~${max.toFixed(1)} TL` : `${a}–${b} TL`;
@@ -172,12 +243,4 @@ export const REASON_TEXT = {
   avoid_peak: '17-22 puant diliminden kaçınıyoruz',
   cheap_night: 'Gece tarifesi en ucuz dilim',
   netmeter_edge: 'Evde tüketmek şebekeye satmaktan kârlı',
-};
-
-// Data-quality disclosure: shown whenever the backend's weather_source isn't
-// "live" (weather-check onboarding card, Today screen), mirroring the same
-// rule the assistant chat's system prompt and fallback templates follow.
-export const WEATHER_SOURCE_NOTE = {
-  cached: 'Canlı hava verisine şu an ulaşılamadı — en son bilinen veri kullanılıyor.',
-  synthetic: 'Canlı hava verisine ulaşılamadı — mevsimsel tahmini veri kullanılıyor.',
 };

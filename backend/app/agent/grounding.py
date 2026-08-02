@@ -9,7 +9,7 @@ backed by the plan (within rounding tolerance). Small integers 0–24 are treate
 as clock hours / counts and ignored; values ≥ 1000 (years, ids) are ignored.
 
 Used by:
-  * the agent test suite (asserts fallback replies are grounded), and
+  * the agent test suite, and
   * the orchestrator (logs a warning when the live LLM invents a figure — the
     hook where Sprint-2 "regenerate on ungrounded" plugs in).
 """

@@ -6,34 +6,16 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Pressable, RefreshControl, ScrollView, Text, View,
 } from 'react-native';
-import { api, rangeTL, WEATHER_SOURCE_NOTE } from '../api';
+import { api, rangeTL } from '../api';
 import DailyChart from '../components/DailyChart';
+import { DeviceRunningToggle } from '../components/DeviceControls';
 import { SunIcon, LeafIcon } from '../components/Icons';
 import { ScreenHeader } from '../components/Brand';
 import PlanCard from '../components/PlanCard';
 import {
-  DataQualityNotice, EmptyState, ErrorState, LoadingState,
+  EmptyState, ErrorState, InlineNotice, LoadingState,
 } from '../components/States';
 import { spacing, font, card, colors, text } from '../theme';
-
-// "v1-lightgbm (2026-07-15)" — omits the date when a model has none (the
-// hardcoded v0 physical/profile fallback has no training date).
-// Raw artifact ids (v1-lightgbm …) are engineering detail; the user gets a
-// plain-Turkish name. Unknown ids fall through unchanged rather than lying.
-const MODEL_LABELS = {
-  'v0-physical': 'fiziksel model',
-  'v0-profile': 'profil tahmini',
-  'v1-lightgbm': 'LightGBM v1',
-  'v1-weather-regressor': 'hava tabanlı regresyon v1',
-  'v1-generic-load-shape': 'yük şekli v1',
-  'v2-catboost-calibrated': 'CatBoost kalibreli v2',
-};
-const modelLabel = (id) => MODEL_LABELS[id] || id;
-
-function formatModel(version, trainedAt) {
-  const label = modelLabel(version);
-  return trainedAt ? `${label} (${trainedAt})` : label;
-}
 
 function DaySelector({ day, setDay }) {
   return (
@@ -74,17 +56,22 @@ export default function Today({ userId, refreshKey = 0 }) {
   const [alerts, setAlerts] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [deviceStatusBusy, setDeviceStatusBusy] = useState('');
+  const [deviceStatus, setDeviceStatus] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [p, n] = await Promise.all([
+      const [p, n, userProfile] = await Promise.all([
         api.plan(userId, day),
         api.notifications(userId).catch(() => ({ notifications: [] })),
+        api.profile(userId).catch(() => null),
       ]);
       setPlan(p);
       setAlerts(n.notifications);
+      if (userProfile) setProfile(userProfile);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -93,6 +80,37 @@ export default function Today({ userId, refreshKey = 0 }) {
   }, [userId, day, refreshKey]);
 
   useEffect(() => { load(); }, [load]);
+
+  const updateRunningState = async (deviceName, patch) => {
+    if (!profile) return;
+    const previous = profile;
+    const next = {
+      ...profile,
+      devices: profile.devices.map((device) =>
+        device.name === deviceName ? { ...device, ...patch } : device),
+    };
+    setProfile(next);
+    setDeviceStatusBusy(deviceName);
+    setDeviceStatus(null);
+    try {
+      await api.updateProfile(userId, next);
+      setDeviceStatus({
+        tone: 'success',
+        message: patch.is_running
+          ? `${deviceName} çalışıyor olarak işaretlendi.`
+          : `${deviceName} kapalı olarak işaretlendi.`,
+      });
+      setPlan(await api.plan(userId, day));
+    } catch {
+      setProfile(previous);
+      setDeviceStatus({
+        tone: 'error',
+        message: 'Cihaz durumu kaydedilemedi. Bağlantını kontrol edip yeniden dene.',
+      });
+    } finally {
+      setDeviceStatusBusy('');
+    }
+  };
 
   return (
     <ScrollView
@@ -108,8 +126,8 @@ export default function Today({ userId, refreshKey = 0 }) {
         <ErrorState
           message={plan
             ? 'Plan yenilenemedi, aşağıdakiler en son alınan veriler.'
-            : 'Sunucudan plan alınamadı.'}
-          hint={`Ayarlar sekmesinden sunucu adresini kontrol edebilirsin. (${error})`}
+            : 'Plan şu anda alınamadı.'}
+          hint="Bağlantını kontrol edip tekrar dene."
           onRetry={load}
         />
       )}
@@ -145,46 +163,25 @@ export default function Today({ userId, refreshKey = 0 }) {
                   : ''} · öz tüketim %{Math.round(plan.self_consumption_ratio * 100)}
               </Text>
             </View>
-            <Text style={{
-              fontFamily: font.body, fontSize: 11.5, color: 'rgba(34,21,0,0.6)', marginTop: 8,
-            }}>
-              Aralık gösteriyoruz: tüketimin faturadan tahmin ediliyor — dürüst rakam.
-            </Text>
-            {plan.chart_data.models && (
-              <Text style={{
-                fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.55)', marginTop: 5,
-              }}>
-                Üretim: {formatModel(plan.chart_data.models.production, plan.chart_data.models.production_trained_at)}
-                {' · '}Tüketim:{' '}
-                {formatModel(plan.chart_data.models.consumption, plan.chart_data.models.consumption_trained_at)}
-                {plan.chart_data.models.optimizer ? ` · Optimizer: ${plan.chart_data.models.optimizer}` : ''}
-              </Text>
-            )}
-            {plan.weather_source && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 }}>
-                <View style={{
-                  paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
-                  backgroundColor: plan.weather_source === 'live' ? 'rgba(47,191,102,0.25)'
-                    : plan.weather_source === 'cached' ? 'rgba(247,179,43,0.25)'
-                    : 'rgba(242,109,109,0.25)',
-                }}>
-                  <Text style={{
-                    fontFamily: font.semibold, fontSize: 9.5, letterSpacing: 0.5,
-                    textTransform: 'uppercase',
-                    color: plan.weather_source === 'live' ? '#1a6b35'
-                      : plan.weather_source === 'cached' ? '#6b4400'
-                      : '#6b1a1a',
-                  }}>
-                    Hava: {plan.weather_source === 'live' ? 'Canlı'
-                      : plan.weather_source === 'cached' ? 'Önbellek'
-                      : 'Sentetik'}
-                  </Text>
-                </View>
+            <View style={{ flexDirection: 'row', marginTop: 12, gap: 18 }}>
+              <View>
+                <Text style={{ fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.6)' }}>
+                  Beklenen üretim
+                </Text>
+                <Text style={{ fontFamily: font.semibold, fontSize: 14, color: colors.amberInk }}>
+                  {plan.chart_data.production.reduce((sum, value) => sum + value, 0).toFixed(1)} kWh
+                </Text>
               </View>
-            )}
+              <View>
+                <Text style={{ fontFamily: font.body, fontSize: 10.5, color: 'rgba(34,21,0,0.6)' }}>
+                  Beklenen tüketim
+                </Text>
+                <Text style={{ fontFamily: font.semibold, fontSize: 14, color: colors.amberInk }}>
+                  {plan.chart_data.consumption.reduce((sum, value) => sum + value, 0).toFixed(1)} kWh
+                </Text>
+              </View>
+            </View>
           </LinearGradient>
-
-          <DataQualityNotice weatherSource={plan.chart_data.data_quality?.weather_source} />
 
           {/* Chart */}
           <View style={card}>
@@ -195,6 +192,36 @@ export default function Today({ userId, refreshKey = 0 }) {
               band={plan.chart_data.band}
             />
           </View>
+
+          {profile?.devices?.length > 0 ? (
+            <View style={card}>
+              <Text style={[text.label, { marginBottom: spacing.s }]}>Cihaz durumu</Text>
+              <Text style={[text.small, { marginBottom: spacing.s, lineHeight: 17 }]}>
+                Çalışan cihazı işaretlediğinde bugünkü tüketim ve plan hemen güncellenir.
+              </Text>
+              {profile.devices.map((device, index) => (
+                <View
+                  key={device.name}
+                  style={{
+                    paddingVertical: spacing.s,
+                    borderTopWidth: index === 0 ? 0 : 1,
+                    borderTopColor: colors.line,
+                  }}
+                >
+                  <Text style={text.subtitle}>{device.name}</Text>
+                  <DeviceRunningToggle
+                    device={device}
+                    disabled={Boolean(deviceStatusBusy)}
+                    onChange={(patch) => updateRunningState(device.name, patch)}
+                  />
+                </View>
+              ))}
+              <InlineNotice
+                tone={deviceStatus?.tone}
+                message={deviceStatus?.message}
+              />
+            </View>
+          ) : null}
 
           {/* Plan items */}
           {plan.items.length > 0 && (

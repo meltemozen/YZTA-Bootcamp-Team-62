@@ -1,6 +1,4 @@
-// Assistant: free Turkish chat with the Gemini agent.
-// When an objection/preference is stated the agent writes it to memory and
-// re-plans; for transparency the chain of called tools is shown under the message.
+// Assistant: conversational access to the user's energy plan.
 
 import React, { useRef, useState } from 'react';
 import {
@@ -13,10 +11,10 @@ import { TOUCH } from '../components/States';
 import { spacing, font, colors, text } from '../theme';
 
 const EXAMPLES = [
-  'Yarın için plan yapar mısın?',
-  'Çamaşırı ne zaman atayım?',
-  'Salı öğlen evde olmayacağım',
-  'Bu ay ne kadar tasarruf ettim?',
+  'Yarın en verimli saatler hangileri?',
+  'Çamaşır makinesini ne zaman çalıştırayım?',
+  'Yarın öğlen evde olmayacağım',
+  'Planımı kısaca açıklar mısın?',
 ];
 
 export default function Assistant({ userId }) {
@@ -24,8 +22,8 @@ export default function Assistant({ userId }) {
     {
       role: 'assistant',
       text:
-        'Merhaba! Ben Wattra. Panelinin üretimini, tüketimini ve tarifeni izliyorum. ' +
-        'Bana "yarın için plan yap" diyebilir ya da alışkanlıklarını söyleyebilirsin — hatırlarım.',
+        'Merhaba! Enerji planınla ilgili sorularını yanıtlayabilirim. ' +
+        'Cihazların için uygun saatleri sorabilir veya günlük planını değiştirecek bir tercihini yazabilirsin.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -45,11 +43,9 @@ export default function Assistant({ userId }) {
         {
           role: 'assistant',
           text: resp.reply,
-          tools: resp.tool_calls,
-          mode: resp.agent_mode,
         },
       ]);
-    } catch {
+    } catch (err) {
       // Keep the question on the message so one tap can retry it — retyping
       // after a dropped connection is the most annoying way to lose work.
       setMessages((m) => [
@@ -57,8 +53,9 @@ export default function Assistant({ userId }) {
         {
           role: 'assistant',
           failed: message,
-          text: 'Sunucuya ulaşamadım, cevabı alamadım. Bağlantını kontrol edip '
-            + 'tekrar deneyebilirsin (sunucu adresi Ayarlar\'dan değiştirilebilir).',
+          text: err?.status === 503
+            ? 'Asistan şu anda yanıt veremiyor. Biraz sonra tekrar deneyebilirsin.'
+            : 'Cevabı alamadım. Bağlantını kontrol edip tekrar deneyebilirsin.',
         },
       ]);
     } finally {
@@ -102,17 +99,6 @@ export default function Assistant({ userId }) {
             }}>
               {m.text}
             </Text>
-            {m.tools?.length > 0 && (
-              <View style={{
-                marginTop: 8, paddingTop: 8,
-                borderTopWidth: 1, borderTopColor: colors.line,
-              }}>
-                <Text style={[text.small, { fontSize: 10.5, lineHeight: 15 }]}>
-                  {m.tools.join('  →  ')}
-                  {m.mode === 'fallback' ? '   ·   kural modu' : ''}
-                </Text>
-              </View>
-            )}
             {m.failed && (
               <Pressable
                 onPress={() => send(m.failed)}
@@ -159,7 +145,7 @@ export default function Assistant({ userId }) {
         <TextInput
           value={input}
           onChangeText={setInput}
-          placeholder="Sorunu yaz veya alışkanlığını söyle…"
+          placeholder="Enerji planınla ilgili bir şey sor…"
           placeholderTextColor={colors.faint}
           style={{
             flex: 1, backgroundColor: colors.input, borderWidth: 1, borderColor: colors.border,

@@ -2,7 +2,6 @@
 // Auth flow: no token → Login/Register, token + no profile → Onboarding, otherwise → main app.
 // Screens are not shown until the brand fonts (Space Grotesk + Inter) load.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
@@ -19,6 +18,7 @@ import { ActivityIndicator, Platform, View } from 'react-native';
 import { api } from './src/api';
 import { AuthProvider, useAuth } from './src/AuthContext';
 import { SettingsIcon, ChartIcon, BoltIcon, ChatIcon } from './src/components/Icons';
+import { AppErrorBoundary } from './src/components/States';
 import Assistant from './src/screens/Assistant';
 import Login from './src/screens/Login';
 import Onboarding from './src/screens/Onboarding';
@@ -70,25 +70,18 @@ async function scheduleNotifications(userId) {
 }
 
 function AppContent() {
-  const { user, loading, isAuthenticated } = useAuth();
+  const {
+    user, loading, isAuthenticated, needsOnboarding, completeOnboarding,
+  } = useAuth();
   const [authScreen, setAuthScreen] = useState('login'); // 'login' | 'register'
-  const [onboardingDone, setOnboardingDone] = useState(false);
   // Tabs stay mounted, so a profile edit in Settings would otherwise leave the
   // Today/Report screens showing a plan built from the OLD tariff or devices.
   // Bumping this counter re-runs their loaders.
   const [profileVersion, setProfileVersion] = useState(0);
 
-  // Check if user has completed onboarding (has a real profile stored)
   useEffect(() => {
-    if (!isAuthenticated) { setOnboardingDone(false); return; }
-    AsyncStorage.getItem('onboarding_done_' + user.id).then((val) => {
-      setOnboardingDone(val === 'true');
-    });
-  }, [isAuthenticated, user?.id]);
-
-  useEffect(() => {
-    if (user && onboardingDone) scheduleNotifications(user.id);
-  }, [user, onboardingDone]);
+    if (user && !needsOnboarding) scheduleNotifications(user.id);
+  }, [user, needsOnboarding]);
 
   if (loading) {
     return (
@@ -113,16 +106,13 @@ function AppContent() {
   }
 
   // Authenticated but hasn't completed onboarding
-  if (!onboardingDone) {
+  if (needsOnboarding) {
     return (
       <>
         <StatusBar style="light" />
         <Onboarding
           userId={user.id}
-          onDone={async () => {
-            await AsyncStorage.setItem('onboarding_done_' + user.id, 'true');
-            setOnboardingDone(true);
-          }}
+          onDone={completeOnboarding}
         />
       </>
     );
@@ -154,9 +144,11 @@ function AppContent() {
         <Tab.Screen name="Bugün">
           {() => <Today userId={user.id} refreshKey={profileVersion} />}
         </Tab.Screen >
-        <Tab.Screen name="Asistan">
-          {() => <Assistant userId={user.id} />}
-        </Tab.Screen>
+        {user.isAdmin ? (
+          <Tab.Screen name="Asistan">
+            {() => <Assistant userId={user.id} />}
+          </Tab.Screen>
+        ) : null}
         <Tab.Screen name="Rapor">
           {() => <Report userId={user.id} refreshKey={profileVersion} />}
         </Tab.Screen>
@@ -188,8 +180,10 @@ export default function App() {
   }
 
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </AppErrorBoundary>
   );
 }

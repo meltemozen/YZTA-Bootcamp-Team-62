@@ -1,7 +1,7 @@
 // Profile — kullanıcı profili ekranı.
 // Kullanıcı adı, e-posta, sistem bilgileri, şifre değiştirme ve çıkış.
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, Text, TextInput, View,
 } from 'react-native';
@@ -9,6 +9,7 @@ import { useAuth } from '../AuthContext';
 import { api } from '../api';
 import { alertUser } from '../notify';
 import { ScreenHeader } from '../components/Brand';
+import { ErrorState, InlineNotice, LoadingState } from '../components/States';
 import {
   primaryButton, primaryButtonText, secondaryButton, secondaryButtonText,
   dangerButton, dangerButtonText, inputField, card, spacing, font, colors, text,
@@ -22,6 +23,8 @@ export default function Profile({ onBack }) {
   const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [errorName, setErrorName] = useState('');
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState(false);
 
   // Password change
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -31,14 +34,23 @@ export default function Profile({ onBack }) {
   const [changingPassword, setChangingPassword] = useState(false);
   const [errorPassword, setErrorPassword] = useState('');
 
-  useEffect(() => {
+  const loadProfile = useCallback(async () => {
     if (!user) return;
-    api.authMe().then((me) => {
+    setProfileLoading(true);
+    setProfileError(false);
+    try {
+      const me = await api.authMe();
       setProfile(me.profile);
       setName(me.name || '');
       setEmail(me.email || '');
-    }).catch(() => {});
+    } catch {
+      setProfileError(true);
+    } finally {
+      setProfileLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => { loadProfile(); }, [loadProfile]);
 
   const handleSaveProfile = async () => {
     setErrorName('');
@@ -58,13 +70,12 @@ export default function Profile({ onBack }) {
       setEditMode(false);
       alertUser('Güncellendi', 'Bilgilerin başarıyla değiştirildi.');
     } catch (err) {
-      const msg = err.message || '';
-      if (msg.includes('409')) {
+      if (err.status === 409) {
         setErrorName('Bu e-posta adresi zaten başka bir hesap tarafından kullanılıyor.');
-      } else if (msg.includes('422')) {
+      } else if (err.status === 422) {
         setErrorName('Geçersiz formatta e-posta adresi girdiniz.');
       } else {
-        setErrorName(`Hata: ${msg}`);
+        setErrorName('Bilgilerin kaydedilemedi. Bağlantını kontrol edip yeniden dene.');
       }
     } finally {
       setSaving(false);
@@ -90,11 +101,10 @@ export default function Profile({ onBack }) {
       setNewPassword('');
       setConfirmNew('');
     } catch (err) {
-      const msg = err.message || '';
-      if (msg.includes('401')) {
+      if (err.status === 401) {
         setErrorPassword('Mevcut şifre yanlış.');
       } else {
-        setErrorPassword(`Hata oluştu: ${msg}`);
+        setErrorPassword('Şifre değiştirilemedi. Bağlantını kontrol edip yeniden dene.');
       }
     } finally {
       setChangingPassword(false);
@@ -114,6 +124,15 @@ export default function Profile({ onBack }) {
     >
       <ScreenHeader title="Profilim" />
 
+      {profileLoading ? <LoadingState label="Profil yükleniyor…" /> : null}
+      {profileError ? (
+        <ErrorState
+          title="Profil yüklenemedi"
+          message="Profil bilgilerin şu anda alınamadı."
+          onRetry={loadProfile}
+        />
+      ) : null}
+
       {/* User info card */}
       <View style={card}>
         <Text style={text.label}>KULLANICI BİLGİLERİ</Text>
@@ -123,9 +142,7 @@ export default function Profile({ onBack }) {
           <Text style={[text.small, { marginBottom: 4 }]}>Ad Soyad</Text>
           {editMode ? (
             <View style={{ gap: 12 }}>
-              {errorName ? (
-                <Text style={{ color: colors.critical, fontSize: 13 }}>{errorName}</Text>
-              ) : null}
+              <InlineNotice tone="error" message={errorName} />
               <View>
                 <TextInput value={name} onChangeText={setName} style={inputField} />
               </View>
@@ -168,18 +185,14 @@ export default function Profile({ onBack }) {
         <View style={card}>
           <Text style={text.label}>SİSTEM BİLGİLERİ</Text>
           <Text style={[text.body, { marginTop: spacing.s, lineHeight: 23 }]}>
-            {profile.user_type === 'home' ? '🏠 Ev' : '🏢 İşyeri'} · {profile.city}{'\n'}
+            {profile.user_type === 'home' ? 'Ev' : 'İşyeri'} · {profile.city}{'\n'}
             <Text style={{ color: colors.amber, fontFamily: font.medium }}>
-              ⚡ {profile.panel_kw} kW panel
+              {profile.panel_kw} kW panel
             </Text>
-            {profile.battery_kwh > 0 ? ` · 🔋 ${profile.battery_kwh} kWh batarya` : ' · batarya yok'}
-            {'\n'}📄 Fatura: {profile.monthly_bill_kwh} kWh/ay ·{' '}
+            {profile.battery_kwh > 0 ? ` · ${profile.battery_kwh} kWh batarya` : ' · batarya yok'}
+            {'\n'}Fatura: {profile.monthly_bill_kwh} kWh/ay ·{' '}
             {profile.tariff_type === 'three_zone' ? 'üç zamanlı' : 'tek zamanlı'} tarife
-            {'\n'}🔌 Cihazlar: {profile.devices?.map((d) => d.name).join(', ') || '—'}
-          </Text>
-          <Text style={[text.small, { marginTop: spacing.s }]}>
-            Sistem bilgilerini değiştirmek için Ayarlar ekranından hesabı sıfırla ve
-            kurulumu yeniden yap.
+            {'\n'}Cihazlar: {profile.devices?.map((d) => d.name).join(', ') || '—'}
           </Text>
         </View>
       )}
@@ -198,11 +211,7 @@ export default function Profile({ onBack }) {
 
         {showPasswordChange && (
           <View style={{ marginTop: spacing.m }}>
-            {errorPassword ? (
-              <View style={{ backgroundColor: 'rgba(242,109,109,0.12)', padding: spacing.m, borderRadius: 12, marginBottom: spacing.m, borderWidth: 1, borderColor: 'rgba(242,109,109,0.25)' }}>
-                <Text style={[text.body, { color: colors.critical, fontSize: 14 }]}>{errorPassword}</Text>
-              </View>
-            ) : null}
+            <InlineNotice tone="error" message={errorPassword} />
             <Text style={[text.small, { marginBottom: 4 }]}>Mevcut Şifre</Text>
             <TextInput
               value={currentPassword}

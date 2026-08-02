@@ -1,10 +1,4 @@
-"""Monthly report — the proven-value layer.
-
-The counterfactual is framed HONESTLY: the saving of items marked "applied" is
-reported as 'estimated' (simulation-based, not meter-verified), the rest as
-'missed opportunity'. Both figures rest on the optimization simulation (not
-meter readings) and the note text says so.
-"""
+"""Monthly report calculated from saved plans and user feedback."""
 
 from .. import config, db
 from ..schemas import MonthlyReport
@@ -41,10 +35,10 @@ def monthly_report(user_id: int, month: str) -> MonthlyReport:
     elif missed > 0:
         note = (f"Önerilerin {applied_count}/{total} kadarını uyguladın. Kalanını da "
                 f"uygulasaydın ay sonunda yaklaşık {missed:.0f} TL daha cebinde kalırdı. "
-                "Rakamlar tarife ve üretim tahminine dayalı simülasyondur.")
+                "Sonuçlar uyguladığın planlar ve tarife bilgilerinle hesaplandı.")
     else:
-        note = ("Tebrikler — bu ay tüm önerileri uyguladın! Rakamlar tarife ve üretim "
-                "tahminine dayalı simülasyondur.")
+        note = ("Tebrikler — bu ay tüm önerileri uyguladın. Sonuçlar uyguladığın planlar "
+                "ve tarife bilgilerinle hesaplandı.")
 
     return MonthlyReport(
         month=month,

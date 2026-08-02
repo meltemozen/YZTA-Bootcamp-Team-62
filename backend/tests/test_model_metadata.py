@@ -52,20 +52,20 @@ def test_consumption_forecast_carries_trained_at():
     assert forecast.trained_at == "2026-07-13"
 
 
-# --- Hardcoded fallbacks (no artifact file) honestly report no training date ---
+# --- Missing artifacts fail closed ---
 
-def test_production_physical_fallback_has_no_trained_at(monkeypatch):
+def test_missing_production_artifact_is_rejected(monkeypatch):
     monkeypatch.setattr(production, "_MODEL_PATH", "/nonexistent/production.json")
-    model = production._load_model.__wrapped__()
-    assert model["model_version"] == "v0-physical"
-    assert model["trained_at"] is None
+    import pytest
+    with pytest.raises(RuntimeError):
+        production._load_model.__wrapped__()
 
 
-def test_consumption_profile_fallback_has_no_trained_at(monkeypatch):
+def test_missing_consumption_artifact_is_rejected(monkeypatch):
     monkeypatch.setattr(consumption, "_MODEL_PATH", "/nonexistent/consumption.json")
-    model = consumption._load_model.__wrapped__()
-    assert model["model_version"] == "v0-profile"
-    assert model["trained_at"] is None
+    import pytest
+    with pytest.raises(RuntimeError):
+        consumption._load_model.__wrapped__()
 
 
 # --- Optimizer has no trained artifact but still carries a manually-bumped

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS user (
     email TEXT UNIQUE,
     password_hash TEXT,
     name TEXT DEFAULT '',
+    is_admin INTEGER NOT NULL DEFAULT 0,
     profile TEXT NOT NULL,
     created TEXT NOT NULL
 );
@@ -43,14 +44,6 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 """
 
-# Migration helper: add auth columns to existing databases that lack them.
-_MIGRATIONS = [
-    "ALTER TABLE user ADD COLUMN email TEXT UNIQUE",
-    "ALTER TABLE user ADD COLUMN password_hash TEXT",
-    "ALTER TABLE user ADD COLUMN name TEXT DEFAULT ''",
-]
-
-
 @contextmanager
 def connect():
     con = sqlite3.connect(config.DB_PATH)
@@ -62,15 +55,36 @@ def connect():
         con.close()
 
 
+def _columns(con, table: str) -> set[str]:
+    return {row["name"] for row in con.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _migrate_user_auth_columns(con) -> None:
+    """Upgrade pre-auth SQLite files in place.
+
+    SQLite cannot add a UNIQUE column via ALTER TABLE. Add email as nullable
+    text, then enforce uniqueness with a partial unique index.
+    """
+    cols = _columns(con, "user")
+    if "email" not in cols:
+        con.execute("ALTER TABLE user ADD COLUMN email TEXT")
+    if "password_hash" not in cols:
+        con.execute("ALTER TABLE user ADD COLUMN password_hash TEXT")
+    if "name" not in cols:
+        con.execute("ALTER TABLE user ADD COLUMN name TEXT DEFAULT ''")
+    if "is_admin" not in cols:
+        con.execute("ALTER TABLE user ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+    con.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_email_unique "
+        "ON user(email) WHERE email IS NOT NULL"
+    )
+
+
 def init_db() -> None:
     with connect() as con:
         con.executescript(_SCHEMA)
         # Run migrations for pre-auth databases (columns already exist → skip).
-        for sql in _MIGRATIONS:
-            try:
-                con.execute(sql)
-            except sqlite3.OperationalError:
-                pass  # column already exists
+        _migrate_user_auth_columns(con)
 
 
 # --- User (legacy — backward-compatible with the old register flow) ---
@@ -87,7 +101,9 @@ def get_user(user_id: int) -> HouseholdProfile | None:
     with connect() as con:
         row = con.execute("SELECT profile FROM user WHERE id = ?",
                           (user_id,)).fetchone()
-    return HouseholdProfile.model_validate_json(row["profile"]) if row else None
+    if not row or row["profile"] in (None, "null", ""):
+        return None
+    return HouseholdProfile.model_validate_json(row["profile"])
 
 
 def update_user(user_id: int, profile: HouseholdProfile) -> None:
@@ -99,14 +115,14 @@ def update_user(user_id: int, profile: HouseholdProfile) -> None:
 # --- User (auth) ---
 
 def create_auth_user(email: str, password_hash: str, name: str,
-                     profile: HouseholdProfile) -> int:
+                     profile: HouseholdProfile | None = None) -> int:
     """Register a new user with e-mail + hashed password."""
     with connect() as con:
         cur = con.execute(
             "INSERT INTO user (email, password_hash, name, profile, created) "
             "VALUES (?, ?, ?, ?, ?)",
             (email.lower().strip(), password_hash, name.strip(),
-             profile.model_dump_json(), datetime.now().isoformat()))
+             profile.model_dump_json() if profile else "null", datetime.now().isoformat()))
         return cur.lastrowid
 
 
@@ -114,7 +130,7 @@ def get_user_by_email(email: str) -> dict | None:
     """Return ``{id, email, password_hash, name, profile}`` or *None*."""
     with connect() as con:
         row = con.execute(
-            "SELECT id, email, password_hash, name, profile FROM user "
+            "SELECT id, email, password_hash, name, is_admin, profile FROM user "
             "WHERE email = ?", (email.lower().strip(),)).fetchone()
     return dict(row) if row else None
 
@@ -123,7 +139,7 @@ def get_user_auth_info(user_id: int) -> dict | None:
     """Return ``{id, email, name, profile}`` for the profile screen."""
     with connect() as con:
         row = con.execute(
-            "SELECT id, email, name, profile FROM user WHERE id = ?",
+            "SELECT id, email, name, is_admin, profile FROM user WHERE id = ?",
             (user_id,)).fetchone()
     return dict(row) if row else None
 
@@ -144,6 +160,18 @@ def update_user_password(user_id: int, password_hash: str) -> None:
     with connect() as con:
         con.execute("UPDATE user SET password_hash = ? WHERE id = ?",
                     (password_hash, user_id))
+
+
+def set_user_admin(user_id: int, is_admin: bool = True) -> None:
+    with connect() as con:
+        con.execute("UPDATE user SET is_admin = ? WHERE id = ?",
+                    (1 if is_admin else 0, user_id))
+
+
+def is_user_admin(user_id: int) -> bool:
+    with connect() as con:
+        row = con.execute("SELECT is_admin FROM user WHERE id = ?", (user_id,)).fetchone()
+    return bool(row and row["is_admin"])
 
 
 # --- Memory (preferences) ---

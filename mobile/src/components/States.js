@@ -2,12 +2,100 @@
 // One place so every screen fails the same way — the user always sees what
 // happened and what they can do next, never a blank screen or a raw stack.
 
-import React from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { ActivityIndicator, Animated, Pressable, Text, View } from 'react-native';
 import { spacing, font, card, colors, text } from '../theme';
 
 // Minimum comfortable touch target (iOS HIG 44pt / Android 48dp).
 export const TOUCH = 44;
+
+const NOTICE_COLORS = {
+  info: colors.amber,
+  success: colors.success,
+  error: colors.critical,
+};
+
+/** Compact animated feedback for actions that complete in place. */
+export function InlineNotice({
+  tone = 'info', message, loading = false, actionLabel, onAction,
+}) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    progress.setValue(0);
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [message, progress]);
+
+  if (!message) return null;
+  const accent = NOTICE_COLORS[tone] || NOTICE_COLORS.info;
+
+  return (
+    <Animated.View
+      accessibilityRole={tone === 'error' ? 'alert' : 'text'}
+      accessibilityLiveRegion="polite"
+      style={{
+        opacity: progress,
+        transform: [{
+          translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [5, 0] }),
+        }],
+        flexDirection: 'row', alignItems: 'center', gap: spacing.s,
+        borderWidth: 1, borderColor: accent, borderRadius: 10,
+        backgroundColor: colors.input, paddingHorizontal: spacing.m,
+        paddingVertical: spacing.s, marginBottom: spacing.m,
+      }}
+    >
+      {loading ? (
+        <ActivityIndicator color={accent} size="small" />
+      ) : (
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: accent }} />
+      )}
+      <Text style={[text.small, { color: colors.ink, flex: 1, lineHeight: 18 }]}>
+        {message}
+      </Text>
+      {actionLabel && onAction ? (
+        <Pressable
+          onPress={onAction}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+          style={{ minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: spacing.xs }}
+        >
+          <Text style={{ color: accent, fontFamily: font.semibold, fontSize: 13 }}>
+            {actionLabel}
+          </Text>
+        </Pressable>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+/** Last-resort UI guard so a render failure never leaves a blank screen. */
+export class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', padding: spacing.l, backgroundColor: colors.page }}>
+        <ErrorState
+          title="Bir sorun oluştu"
+          message="Bu ekran beklenmedik şekilde kapanmak üzereydi. Bilgilerin kaybolmadı."
+          onRetry={() => this.setState({ failed: false })}
+        />
+      </View>
+    );
+  }
+}
 
 /** Skeleton block — keeps layout stable while data loads. */
 function Shimmer({ height, width = '100%', radius = 10 }) {
@@ -98,38 +186,4 @@ export function EmptyState({ title, message, actionLabel, onAction }) {
       ) : null}
     </View>
   );
-}
-
-/** Inline note. `tone="warn"` for data-quality caveats. */
-export function Notice({ children, tone = 'info' }) {
-  const accent = tone === 'warn' ? colors.amber : colors.border;
-  return (
-    <View
-      accessibilityRole="alert"
-      style={[card, {
-        borderLeftWidth: 3, borderLeftColor: accent,
-        paddingVertical: 12, marginBottom: spacing.s,
-      }]}
-    >
-      <Text style={[text.small, { lineHeight: 18, color: colors.inkSecondary }]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-// How the weather that a plan rests on was obtained. "live" needs no caveat;
-// the other two mean the forecast is a fallback and the user deserves to know.
-const WEATHER_CAVEAT = {
-  cached: 'Hava servisine şu an ulaşılamıyor — plan en son alınan tahminle kuruldu. ' +
-          'Bağlantı gelince yenile.',
-  synthetic: 'Hava servisine ulaşılamadı ve önbellek boştu — plan mevsim ortalamasına ' +
-             'dayalı tahmini bir güneş eğrisiyle kuruldu. Gerçek üretim farklı olabilir.',
-};
-
-/** Warns only when the plan does NOT rest on a live forecast. */
-export function DataQualityNotice({ weatherSource }) {
-  const caveat = WEATHER_CAVEAT[weatherSource];
-  if (!caveat) return null;
-  return <Notice tone="warn">{caveat}</Notice>;
 }

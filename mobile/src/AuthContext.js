@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
         // Validate token by calling /api/auth/me
         const me = await api.authMe();
         const hasProfile = me.profile && me.profile.panel_kw > 0;
-        setUser({ id: me.user_id, email: me.email, name: me.name });
+        setUser({ id: me.user_id, email: me.email, name: me.name, isAdmin: !!me.is_admin });
         setNeedsOnboarding(!hasProfile);
       } catch {
         // Token expired or invalid — clear and show login
@@ -55,22 +55,25 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const resp = await api.authLogin(email, password);
     await saveTokens(resp.access_token, resp.refresh_token);
+    const me = await api.authMe();
     await AsyncStorage.setItem('userId', String(resp.user_id));
-    await AsyncStorage.setItem('userName', resp.name || '');
-    await AsyncStorage.setItem('userEmail', email);
-    setUser({ id: resp.user_id, email, name: resp.name });
-    setNeedsOnboarding(false); // existing user always has a profile
+    await AsyncStorage.setItem('userName', me.name || '');
+    await AsyncStorage.setItem('userEmail', me.email || email);
+    setUser({
+      id: me.user_id, email: me.email || email, name: me.name, isAdmin: !!me.is_admin,
+    });
+    setNeedsOnboarding(!me.profile);
     return resp;
   };
 
-  const register = async (email, password, name, profile) => {
-    const resp = await api.authRegister(email, password, name, profile);
+  const register = async (email, password, name) => {
+    const resp = await api.authRegister(email, password, name);
     await saveTokens(resp.access_token, resp.refresh_token);
     await AsyncStorage.setItem('userId', String(resp.user_id));
     await AsyncStorage.setItem('userName', name);
     await AsyncStorage.setItem('userEmail', email);
-    setUser({ id: resp.user_id, email, name });
-    setNeedsOnboarding(false);
+    setUser({ id: resp.user_id, email, name, isAdmin: !!resp.is_admin });
+    setNeedsOnboarding(true);
     return resp;
   };
 

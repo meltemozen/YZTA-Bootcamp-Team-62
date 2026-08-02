@@ -10,7 +10,7 @@
     "data_source": "PVGIS hourly (data/scripts/pvgis_fetch.py) + Open-Meteo archive cloud_cover",
     "data_range": "Deploy artifact: full available PVGIS history, no holdout. Metrics below are from the model-selection run only (hold-out year 2023).",
     "metrics": { "mae": 0.00335, "rmse": 0.00771, "nmae_pct": 2.08 },
-    "note": "Metrics are from compare_production_models.py's hold-out evaluation that selected LightGBM over Ridge/RandomForest/XGBoost/v0-physical (see docs/research/PRODUCTION_MODEL_COMPARISON.md). The deployed artifact itself is retrained on full history without a held-out test, so these numbers describe why this model type was chosen, not a live self-test of this exact binary. If production_v1_lgbm.txt is absent or lightgbm isn't installed, backend/app/tools/production.py falls back to the v1-weather-regressor linear/physical blend automatically."
+    "note": "Metrics are from compare_production_models.py's hold-out evaluation that selected LightGBM over Ridge/RandomForest/XGBoost/v0-physical (see docs/research/PRODUCTION_MODEL_COMPARISON.md). The deployed artifact itself is retrained on full history without a held-out test, so these numbers describe why this model type was chosen, not a live self-test of this exact binary. Deployment fails closed when the LightGBM runtime or artifact is unavailable."
   },
   "consumption": {
     "model_name": "Consumption Forecast",

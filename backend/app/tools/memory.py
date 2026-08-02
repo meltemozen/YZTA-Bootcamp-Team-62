@@ -10,7 +10,7 @@ collection, so `search_preferences(query)` retrieves similar past preferences
 by MEANING, not just keywords. The layer is strictly best-effort — without the
 feature flag, the chromadb package or a GEMINI_API_KEY it degrades to a
 dependency-free keyword match over SQLite; the product never stalls (same
-philosophy as the agent fallback). The locked read/write signatures are
+same persistent preference store). The locked read/write signatures are
 unchanged; search_preferences is an additive tool (CONTRACT.md v1.3).
 """
 
@@ -78,7 +78,7 @@ def _backfill(col, user_id: int) -> None:
 
 
 def _keyword_search(user_id: int, query: str, top_k: int) -> list[dict]:
-    """Dependency-free fallback: casefolded word overlap over recent
+    """Dependency-free lexical search: casefolded word overlap over recent
     preferences. No hit at all → most recent ones are still useful context."""
     words = {w for w in query.casefold().split() if len(w) > 2}
     prefs = db.preferences(user_id, limit=50)
@@ -142,5 +142,5 @@ def search_preferences(user_id: int, query: str, top_k: int = 5) -> list[dict]:
                                                res["distances"][0])
                 ]
         except Exception:
-            log.exception("Semantic search failed; using keyword fallback")
+            log.exception("Semantic search failed; using lexical search")
     return _keyword_search(user_id, query, top_k)

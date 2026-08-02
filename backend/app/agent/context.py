@@ -1,7 +1,4 @@
-"""Agent tool context: binds tools to a single user and stores intermediate
-results. Both the Gemini orchestrator and the fallback use the same context —
-this is the guarantee that "the agent actually consumes the model's output".
-"""
+"""Agent tool context: binds tools to one user and stores intermediate results."""
 
 from datetime import date, timedelta
 
@@ -46,14 +43,7 @@ class ToolContext:
 
     @property
     def calls(self) -> list[str]:
-        """Transparency log, deduplicated (first occurrence wins, order kept).
-
-        A tool can legitimately run twice in one turn — e.g. Gemini walks part
-        of the chain, the call fails, and `fallback.reply()` re-runs the same
-        pipeline on this same context. Cached values mean no extra work
-        actually happens, so the mobile footer showing "tool(date)" twice back
-        to back would just be noise, not a second real call.
-        """
+        """Provider tool log, deduplicated in first-seen order."""
         seen: set[str] = set()
         out: list[str] = []
         for c in self._calls:
@@ -97,7 +87,8 @@ class ToolContext:
         self._tariff[d] = get_tariff(d, self.profile.user_type,
                                      self.profile.tariff_type,
                                      monthly_kwh=self.profile.monthly_bill_kwh,
-                                     custom=self.profile.custom_tariff)
+                                     custom=self.profile.custom_tariff,
+                                     require_user_prices=True)
         tf = self._tariff[d]
         return {"tariff_type": self.profile.tariff_type,
                 "cheapest_hour_tl": min(tf.hourly_price), "priciest_hour_tl": max(tf.hourly_price),
@@ -120,11 +111,6 @@ class ToolContext:
         plan = optimize(self._production[d], self._consumption[d], self._tariff[d],
                         self.profile, set(blocked_hours or []), current_hour=current_hour,
                         weather_source=weather_source)
-        # Honesty: the UI must be able to say WHEN a plan rests on offline
-        # fallback weather instead of a live forecast (see mobile DataQuality).
-        weather = self._weather.get(d)
-        plan.chart_data["data_quality"] = {
-            "weather_source": weather.source if weather else "unknown"}
         self.last_plan = plan
         db.save_plan(self.user_id, plan)
         return {

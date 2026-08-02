@@ -67,16 +67,15 @@ yeniden doğrulanmalıdır.
 - [ ] **VB:** LightGBM üretim modeli v1 (`production.py` gövdesi, kontrat sabit) — Sprint 2
 - [ ] **VB:** LightGBM tüketim modeli v1 (`consumption.py` gövdesi) — Sprint 2
 - [ ] **VB:** EPİAŞ şekil doğrulama raporu (METHOD §3) — Sprint 2
-- [ ] **VB:** Model doğruluk raporu (nMAE, hold-out) — Sprint 3
+- [ ] **YZ+VB:** Model manifest + veri kalite şeffaflığı — Sprint 3
 - [ ] **YZ:** Gemini anahtarıyla uçtan uca agent testi + prompt incelemesi — Sprint 2
 - [ ] **YZ-3:** Chroma semantik hafıza (opsiyonel, `memory.py` genişleme noktası) — Sprint 2
-- [ ] **Ortak:** EPDK güncel tarife + mahsup bedeli teyidi (`config.py`) — teslim öncesi
-- [ ] **Ortak:** Railway/Cloud Run canlı URL + EAS ile APK — Sprint 3
-- [ ] **Ortak:** 3 dk demo videosu (akış: DEPLOY §6) — Sprint 3
+- [ ] **Ortak:** Railway/Cloud Run/Cloudflare canlı URL + deploy smoke testi — Sprint 3
+- [ ] **Ortak:** EAS Android/iOS build + TestFlight hazırlığı — Sprint 3
 
 ## Veri kaynakları
 
 [Open-Meteo](https://open-meteo.com) (canlı hava, anahtarsız) ·
 [PVGIS](https://re.jrc.ec.europa.eu/pvg_tools/en/) (ışınım geçmişi) ·
-EPDK (tarife, koda gömülü, kaynaklı) · [EPİAŞ Şeffaflık](https://seffaflik.epias.com.tr)
+Kullanıcı tanımlı tarife override'ı + kaynaklı sabit fallback tablo · [EPİAŞ Şeffaflık](https://seffaflik.epias.com.tr)
 (profil doğrulama) · UCI/London (tüketim şekli) · ETKB (emisyon faktörü)

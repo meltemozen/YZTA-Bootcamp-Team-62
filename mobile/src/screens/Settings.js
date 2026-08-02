@@ -1,26 +1,23 @@
-// Settings: API address (the computer's LAN IP during Expo Go testing) +
-// profile summary + Profile link + logout.
+// Settings: profile summary + Profile link + logout.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { api, apiUrl } from '../api';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import { confirmAction, alertUser } from '../notify';
 import { ScreenHeader, LogoMark } from '../components/Brand';
 import Profile from './Profile';
-import { DeviceEditor, TariffEditor } from '../components/ProfileEditors';
+import {
+  DeviceEditor, LocationEditor, SystemEditor, TariffEditor,
+} from '../components/ProfileEditors';
 import { ErrorState, LoadingState, TOUCH } from '../components/States';
 import {
-  primaryButton, primaryButtonText, dangerButton, dangerButtonText,
-  secondaryButton, secondaryButtonText, spacing, font, card, colors, text,
+  dangerButton, dangerButtonText, spacing, font, card, colors, text,
 } from '../theme';
 
 export default function Settings({ userId, onProfileChange }) {
   const { user, logout } = useAuth();
-  const [url, setUrl] = useState('');
   const [profile, setProfile] = useState(null);
-  const [modelInfo, setModelInfo] = useState(null);
   const [profileError, setProfileError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [catalog, setCatalog] = useState([]);
@@ -38,27 +35,26 @@ export default function Settings({ userId, onProfileChange }) {
     }
   }, [userId]);
 
-  useEffect(() => { apiUrl().then(setUrl); }, []);
   useEffect(() => { loadProfile(); }, [loadProfile]);
   useEffect(() => {
     api.deviceCatalog().then((d) => setCatalog(d.devices)).catch(() => setCatalog([]));
-    api.modelVersions().then(setModelInfo).catch(() => setModelInfo(null));
   }, []);
 
-  const saveProfile = async (next) => {
+  const saveProfile = async (next, options = {}) => {
     try {
       await api.updateProfile(userId, next);
       setProfile(next);
       onProfileChange?.();   // make Bugün/Rapor rebuild with the new profile
-      alertUser('Kaydedildi', 'Planın yeni bilgilerle güncellendi.');
+      if (!options.silent) {
+        alertUser('Kaydedildi', 'Planın yeni bilgilerle güncellendi.');
+      }
+      return true;
     } catch (e) {
-      alertUser('Kaydedilemedi', `Sunucuya ulaşılamadı, değişiklik kaydedilmedi.\n\n${e.message}`);
+      if (!options.silent) {
+        alertUser('Kaydedilemedi', 'Bağlantı kurulamadı. Değişiklik kaydedilmedi.');
+      }
+      return false;
     }
-  };
-
-  const saveUrl = async () => {
-    await AsyncStorage.setItem('apiUrl', url.trim().replace(/\/$/, ''));
-    alertUser('Kaydedildi', 'API adresi güncellendi.');
   };
 
   const handleLogout = () =>
@@ -81,8 +77,8 @@ export default function Settings({ userId, onProfileChange }) {
       {profileError && !profile && (
         <ErrorState
           title="Profil okunamadı"
-          message="Sistem bilgilerin sunucudan alınamadı."
-          hint={`Aşağıdaki sunucu adresi doğru mu kontrol et. (${profileError})`}
+          message="Sistem bilgilerin şu anda alınamadı."
+          hint="Bağlantını kontrol edip tekrar dene."
           onRetry={loadProfile}
         />
       )}
@@ -131,72 +127,11 @@ export default function Settings({ userId, onProfileChange }) {
 
       {profile && (
         <>
+          <LocationEditor profile={profile} onSave={saveProfile} />
+          <SystemEditor profile={profile} onSave={saveProfile} />
           <TariffEditor profile={profile} onSave={saveProfile} />
           <DeviceEditor profile={profile} catalog={catalog} onSave={saveProfile} />
         </>
-      )}
-
-      {/* API address */}
-      <View style={card}>
-        <Text style={text.label}>Sunucu adresi</Text>
-        <Text style={[text.small, { marginVertical: spacing.s }]}>
-          Expo Go ile test ederken bilgisayarının yerel ağ IP'sini yaz
-          (örn. http://192.168.1.34:8000). Canlı sürümde dokunma.
-        </Text>
-        <TextInput
-          value={url}
-          onChangeText={setUrl}
-          autoCapitalize="none"
-          style={{
-            borderWidth: 1, borderColor: colors.border, borderRadius: 12,
-            padding: 12, fontSize: 13.5, backgroundColor: colors.input,
-            color: colors.ink, fontFamily: font.body,
-          }}
-        />
-        <Pressable onPress={saveUrl}
-                   accessibilityRole="button"
-                   accessibilityLabel="Sunucu adresini kaydet"
-                   style={[primaryButton, {
-                     paddingVertical: 12, marginTop: spacing.s, minHeight: TOUCH,
-                     justifyContent: 'center',
-                   }]}>
-          <Text style={[primaryButtonText, { fontSize: 14 }]}>Kaydet</Text>
-        </Pressable>
-      </View>
-
-      {modelInfo && (
-        <View style={card}>
-          <Text style={text.label}>Model Bilgileri</Text>
-          <Text style={[text.small, { marginTop: spacing.s, color: colors.inkSecondary }]}>
-            Planların hangi modellerle üretildiğini görebilirsin.
-          </Text>
-          <View style={{ marginTop: spacing.s, gap: 6 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={[text.small, { color: colors.faint }]}>Üretim modeli</Text>
-              <Text style={[text.small, { color: colors.ink, fontFamily: font.medium }]}>
-                {modelInfo.production_model}
-              </Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={[text.small, { color: colors.faint }]}>Tüketim modeli</Text>
-              <Text style={[text.small, { color: colors.ink, fontFamily: font.medium }]}>
-                {modelInfo.consumption_model}
-              </Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={[text.small, { color: colors.faint }]}>Optimizer</Text>
-              <Text style={[text.small, { color: colors.ink, fontFamily: font.medium }]}>
-                {modelInfo.optimizer}
-              </Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={[text.small, { color: colors.faint }]}>Uygulama</Text>
-              <Text style={[text.small, { color: colors.ink, fontFamily: font.medium }]}>
-                {modelInfo.app_version}
-              </Text>
-            </View>
-          </View>
-        </View>
       )}
 
       {/* Logout */}
@@ -207,15 +142,7 @@ export default function Settings({ userId, onProfileChange }) {
       <View style={{ alignItems: 'center', marginTop: spacing.s, gap: 8 }}>
         <LogoMark size={28} />
         <Text style={[text.small, { textAlign: 'center', lineHeight: 17 }]}>
-          Wattra v0.2 · YZTA Bootcamp Takım 62{'\n'}
-          Hava tahmini: Open-Meteo (canlı) · Işınım geçmişi: PVGIS
-        </Text>
-        {/* Honesty: the tariff is NOT a live EPDK feed — it is a table baked
-            into the app, so say the date and invite the user to compare. */}
-        <Text style={[text.small, { textAlign: 'center', lineHeight: 17 }]}>
-          Tarife fiyatları EPDK'nın 4 Nisan 2026 tablosundan alınıp uygulamaya
-          gömülüdür; canlı bağlantı yoktur. Faturandaki birim fiyat farklıysa
-          tasarruf tahminleri de o oranda değişir.
+          Wattra
         </Text >
       </View >
     </ScrollView >

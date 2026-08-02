@@ -4,8 +4,11 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-local-dev-change-me}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.6-flash}
+      - WATTRA_CORS_ORIGINS=${WATTRA_CORS_ORIGINS:-*}
+      - WATTRA_SEMANTIC_MEMORY=${WATTRA_SEMANTIC_MEMORY:-0}
     volumes:
       - wattra-data:/data
     restart: unless-stopped

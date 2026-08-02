@@ -42,6 +42,7 @@ export const colors = {
   goodText: '#7be0a2',
   goodBg: 'rgba(47,191,102,0.14)',
   critical: '#f26d6d',
+  success: '#4fd1a1',
 };
 
 export const spacing = { xs: 4, s: 8, m: 16, l: 24, xl: 32 };
@@ -135,4 +136,3 @@ export const linkText = {
   fontFamily: font.medium,
   fontSize: 14,
 };
-

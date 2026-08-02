@@ -10,6 +10,10 @@ backend/chroma/
 
 # Ortam değişkenleri — anahtarlar asla commit edilmez
 .env
+cloudflaretunnel.txt
+gemini_apikey.txt
+.wattra-backend.pid
+logs/
 
 # Node / Expo
 node_modules/

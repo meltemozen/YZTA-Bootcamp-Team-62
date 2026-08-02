@@ -4,33 +4,24 @@
 // NOT requested — the backend estimates it from the bill (calibration).
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, Text, TextInput, View,
 } from 'react-native';
-import { api, WEATHER_SOURCE_NOTE } from '../api';
-import { alertUser } from '../notify';
+import { api } from '../api';
 import { LogoMark, Wordmark } from '../components/Brand';
-import { ErrorState, LoadingState, TOUCH } from '../components/States';
+import {
+  DeviceStatusControls, ManualDeviceForm,
+} from '../components/DeviceControls';
+import LocationPicker from '../components/LocationPicker';
+import {
+  ErrorState, InlineNotice, LoadingState, TOUCH,
+} from '../components/States';
 import {
   primaryButton, primaryButtonText, spacing, font, card, colors, text,
 } from '../theme';
 
-const CITIES = [
-  { name: 'İstanbul', lat: 41.01, lon: 28.98 },
-  { name: 'Ankara', lat: 39.93, lon: 32.86 },
-  { name: 'İzmir', lat: 38.42, lon: 27.14 },
-  { name: 'Antalya', lat: 36.9, lon: 30.7 },
-  { name: 'Bursa', lat: 40.19, lon: 29.06 },
-  { name: 'Adana', lat: 37.0, lon: 35.32 },
-  { name: 'Konya', lat: 37.87, lon: 32.48 },
-  { name: 'Gaziantep', lat: 37.07, lon: 37.38 },
-  { name: 'Kayseri', lat: 38.72, lon: 35.49 },
-  { name: 'Şanlıurfa', lat: 37.16, lon: 38.79 },
-  { name: 'Denizli', lat: 37.78, lon: 29.09 },
-  { name: 'Muğla', lat: 37.22, lon: 28.36 },
-];
+const ONBOARDING_DRAFT_VERSION = 1;
 
 function Option({ label, selected, onPress, small }) {
   return (
@@ -101,7 +92,8 @@ function NumberInput({ label, value, setValue, unit, error, warning }) {
 // the message under the field can never disagree. Ranges are physical/legal:
 // residential rooftop net-metering is capped at 10 kW (config.py), and a
 // household bill outside 30-5000 kWh/month is almost certainly a typo.
-function validate({ panelKw, batteryKwh, bill, userType }) {
+function validate({ panelKw, batteryKwh, bill, userType, tariff, singlePrice, dayPrice,
+                    peakPrice, nightPrice, sellPrice }) {
   const errors = {};
   const warnings = {};
 
@@ -136,24 +128,115 @@ function validate({ panelKw, batteryKwh, bill, userType }) {
     warnings.bill = 'Bu çok yüksek — aylık kWh yerine yıllık değeri yazmış olabilir misin?';
   }
 
+  if (!tariff) {
+    errors.tariff = 'Faturandaki tarife türünü seç.';
+  }
+  const requiredPrices = tariff === 'three_zone'
+    ? [dayPrice, peakPrice, nightPrice]
+    : tariff === 'single' ? [singlePrice] : [];
+  if (requiredPrices.some((value) => {
+    const parsed = parseFloat(value.replace(',', '.'));
+    return !value.trim() || Number.isNaN(parsed) || parsed <= 0;
+  })) {
+    errors.tariff = 'Faturandaki geçerli birim fiyatları TL/kWh olarak gir.';
+  }
+  const parsedSell = parseFloat(sellPrice.replace(',', '.'));
+  if (!sellPrice.trim() || Number.isNaN(parsedSell) || parsedSell < 0) {
+    errors.tariff = 'Şebekeye satış bedelini gir; satış yoksa 0 yaz.';
+  }
+
   return { errors, warnings };
 }
 
 export default function Onboarding({ userId, onDone }) {
+  const draftKey = `wattra_onboarding_draft_${userId || 'legacy'}`;
   const [step, setStep] = useState(0);
-  const [type, setType] = useState('home');
-  const [city, setCity] = useState(CITIES[2]);
-  const [panelKw, setPanelKw] = useState('5');
+  const [type, setType] = useState(null);
+  const [city, setCity] = useState(null);
+  const [panelKw, setPanelKw] = useState('');
   const [batteryKwh, setBatteryKwh] = useState('0');
-  const [bill, setBill] = useState('300');
-  const [tariff, setTariff] = useState('single');
+  const [bill, setBill] = useState('');
+  const [tariff, setTariff] = useState(null);
+  const [singlePrice, setSinglePrice] = useState('');
+  const [dayPrice, setDayPrice] = useState('');
+  const [peakPrice, setPeakPrice] = useState('');
+  const [nightPrice, setNightPrice] = useState('');
+  const [sellPrice, setSellPrice] = useState('');
   const [catalog, setCatalog] = useState([]);
   const [selectedDevices, setSelectedDevices] = useState([]);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [weatherCheck, setWeatherCheck] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [registerError, setRegisterError] = useState(null);
   const [catalogError, setCatalogError] = useState(null);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [showManualDevice, setShowManualDevice] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const restoreDraft = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(draftKey);
+        if (!raw || !active) return;
+
+        const draft = JSON.parse(raw);
+        if (draft.version !== ONBOARDING_DRAFT_VERSION) return;
+
+        setStep(Math.max(0, Math.min(3, Number(draft.step) || 0)));
+        setType(['home', 'business'].includes(draft.type) ? draft.type : null);
+        if (draft.city && Number.isFinite(draft.city.lat) && Number.isFinite(draft.city.lon)) {
+          setCity(draft.city);
+        }
+        setPanelKw(typeof draft.panelKw === 'string' ? draft.panelKw : '');
+        setBatteryKwh(typeof draft.batteryKwh === 'string' ? draft.batteryKwh : '0');
+        setBill(typeof draft.bill === 'string' ? draft.bill : '');
+        setTariff(['single', 'three_zone'].includes(draft.tariff) ? draft.tariff : null);
+        setSinglePrice(typeof draft.singlePrice === 'string' ? draft.singlePrice : '');
+        setDayPrice(typeof draft.dayPrice === 'string' ? draft.dayPrice : '');
+        setPeakPrice(typeof draft.peakPrice === 'string' ? draft.peakPrice : '');
+        setNightPrice(typeof draft.nightPrice === 'string' ? draft.nightPrice : '');
+        setSellPrice(typeof draft.sellPrice === 'string' ? draft.sellPrice : '');
+        setSelectedDevices(Array.isArray(draft.selectedDevices) ? draft.selectedDevices : []);
+        setDraftRestored(true);
+      } catch {
+        await AsyncStorage.removeItem(draftKey).catch(() => {});
+      } finally {
+        if (active) setDraftReady(true);
+      }
+    };
+
+    restoreDraft();
+    return () => { active = false; };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftReady) return undefined;
+
+    const timer = setTimeout(() => {
+      const draft = {
+        version: ONBOARDING_DRAFT_VERSION,
+        step,
+        type,
+        city,
+        panelKw,
+        batteryKwh,
+        bill,
+        tariff,
+        singlePrice,
+        dayPrice,
+        peakPrice,
+        nightPrice,
+        sellPrice,
+        selectedDevices,
+      };
+      AsyncStorage.setItem(draftKey, JSON.stringify(draft)).catch(() => {});
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [
+    batteryKwh, bill, city, dayPrice, draftKey, draftReady, nightPrice, panelKw,
+    peakPrice, selectedDevices, sellPrice, singlePrice, step, tariff, type,
+  ]);
 
   const loadCatalog = useCallback(async () => {
     setCatalogError(null);
@@ -169,49 +252,28 @@ export default function Onboarding({ userId, onDone }) {
   const isDeviceSelected = (name) => selectedDevices.some((d) => d.name === name);
   const toggleDevice = (device) =>
     setSelectedDevices((current) =>
-      isDeviceSelected(device.name) ? current.filter((d) => d.name !== device.name) : [...current, device]
+      isDeviceSelected(device.name)
+        ? current.filter((d) => d.name !== device.name)
+        : [...current, {
+          ...device,
+          enabled: true,
+          is_running: false,
+          status_updated_at: null,
+          user_defined: false,
+        }]
     );
+  const updateSelectedDevice = (name, patch) =>
+    setSelectedDevices((current) => current.map((device) =>
+      device.name === name ? { ...device, ...patch } : device));
 
-  const useCurrentLocation = async () => {
-    setLocationLoading(true);
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        alertUser('Konum izni gerekli', 'Konum izni vermezsen listeden il seçerek devam edebilirsin.');
-        return;
-      }
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      let label = 'Konumum';
-      try {
-        const [place] = await Location.reverseGeocodeAsync(position.coords);
-        label = place?.city || place?.subregion || place?.region || label;
-      } catch {
-        // Reverse geocoding is only a label; coordinates are enough for the model.
-      }
-      const nextCity = {
-        name: label,
-        lat: Number(position.coords.latitude.toFixed(4)),
-        lon: Number(position.coords.longitude.toFixed(4)),
-      };
-      setCity(nextCity);
-      const check = await api.weatherCheck({
-        lat: nextCity.lat,
-        lon: nextCity.lon,
-        panel_kw: parseFloat(panelKw) || 5,
-        day: 'today',
-      });
-      setWeatherCheck(check);
-    } catch (err) {
-      alertUser('Konum alınamadı', `Konum veya hava durumu kontrolü başarısız oldu.\n\n${err.message}`);
-    } finally {
-      setLocationLoading(false);
-    }
-  };
-
-  const { errors, warnings } = validate({ panelKw, batteryKwh, bill, userType: type });
+  const { errors, warnings } = validate({
+    panelKw, batteryKwh, bill, userType: type, tariff,
+    singlePrice, dayPrice, peakPrice, nightPrice, sellPrice,
+  });
   // Which fields must be valid before leaving each step.
-  const STEP_FIELDS = [[], ['panelKw', 'batteryKwh'], ['bill'], []];
-  const stepBlocked = STEP_FIELDS[step].some((field) => errors[field]);
+  const STEP_FIELDS = [[], ['panelKw', 'batteryKwh'], ['bill', 'tariff'], []];
+  const stepBlocked = (step === 0 && (!type || !city))
+    || STEP_FIELDS[step].some((field) => errors[field]);
 
   const finish = async () => {
     setSubmitting(true);
@@ -228,16 +290,31 @@ export default function Onboarding({ userId, onDone }) {
         battery_power_kw: battery > 0 ? Math.min(battery / 2, 5) : 0,
         monthly_bill_kwh: parseFloat(bill.replace(',', '.')),
         tariff_type: tariff,
+        custom_tariff: tariff === 'three_zone' ? {
+          single: null,
+          day: parseFloat(dayPrice.replace(',', '.')),
+          peak: parseFloat(peakPrice.replace(',', '.')),
+          night: parseFloat(nightPrice.replace(',', '.')),
+          sell: parseFloat(sellPrice.replace(',', '.')),
+        } : {
+          single: parseFloat(singlePrice.replace(',', '.')),
+          day: null,
+          peak: null,
+          night: null,
+          sell: parseFloat(sellPrice.replace(',', '.')),
+        },
         devices: selectedDevices,
       };
       // If userId is provided (auth flow), update the existing profile.
       // Otherwise fall back to the legacy register flow.
       if (userId) {
         await api.authUpdateMe({ profile });
+        await AsyncStorage.removeItem(draftKey).catch(() => {});
         onDone(userId);
       } else {
         const resp = await api.register(profile);
         await AsyncStorage.setItem('userId', String(resp.user_id));
+        await AsyncStorage.removeItem(draftKey).catch(() => {});
         onDone(resp.user_id);
       }
     } catch (err) {
@@ -254,48 +331,12 @@ export default function Onboarding({ userId, onDone }) {
         <Option label="Evim" selected={type === 'home'} onPress={() => setType('home')} />
         <Option label="İşyerim" selected={type === 'business'} onPress={() => setType('business')} />
       </View>
-      <Text style={[text.title, { marginVertical: spacing.m }]}>Hangi ilde?</Text>
-      <Pressable
-        disabled={locationLoading}
-        onPress={useCurrentLocation}
-        style={[primaryButton, {
-          alignSelf: 'flex-start', minWidth: 190, marginBottom: spacing.m,
-          opacity: locationLoading ? 0.7 : 1,
-        }]}
-      >
-        {locationLoading ? (
-          <ActivityIndicator color={colors.amberInk} />
-        ) : (
-          <Text style={primaryButtonText}>Konumumu kullan</Text>
-        )}
-      </Pressable>
-      {weatherCheck && (
-        <View style={{
-          borderWidth: 1, borderColor: colors.border, borderRadius: 12,
-          backgroundColor: colors.input, padding: spacing.m, marginBottom: spacing.m,
-        }}>
-          <Text style={text.subtitle}>{city.name} hava kontrolü hazır</Text>
-          <Text style={[text.body, { marginTop: 4, fontSize: 13.5 }]}>
-            Bugün {weatherCheck.estimated_production_kwh.toFixed(1)} kWh üretim tahmini,
-            tepe güneş {String(weatherCheck.peak_hour).padStart(2, '0')}:00.
-            Bulut ortalaması %{weatherCheck.avg_cloud_pct.toFixed(0)}.
-          </Text>
-          <Text style={[text.small, { marginTop: 6 }]}>
-            Model: {weatherCheck.production_model_version}
-          </Text>
-          {WEATHER_SOURCE_NOTE[weatherCheck.weather_source] && (
-            <Text style={[text.small, { marginTop: 4, color: colors.amber }]}>
-              {WEATHER_SOURCE_NOTE[weatherCheck.weather_source]}
-            </Text>
-          )}
-        </View>
-      )}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {CITIES.map((c) => (
-          <Option key={c.name} small label={c.name}
-            selected={city.name === c.name} onPress={() => setCity(c)} />
-        ))}
-      </View>
+      <Text style={[text.title, { marginVertical: spacing.m }]}>Sistemin hangi konumda?</Text>
+      <LocationPicker
+        value={city}
+        onChange={setCity}
+        placeLabel={type === 'business' ? 'İşyerinin' : 'Evinin'}
+      />
     </View>,
 
     <View key="panel">
@@ -318,14 +359,36 @@ export default function Onboarding({ userId, onDone }) {
         error={errors.bill} warning={warnings.bill} />
       <Text style={[text.body, { marginBottom: spacing.s }]}>Tarifen hangisi?</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        <Option label="Tek zamanlı (bilmiyorum)" selected={tariff === 'single'}
+        <Option label="Tek zamanlı" selected={tariff === 'single'}
           onPress={() => setTariff('single')} />
         <Option label="Üç zamanlı" selected={tariff === 'three_zone'}
           onPress={() => setTariff('three_zone')} />
       </View>
+      {tariff === 'single' && (
+        <NumberInput label="Faturandaki birim fiyat" value={singlePrice}
+          setValue={setSinglePrice} unit="TL / kWh" />
+      )}
+      {tariff === 'three_zone' && (
+        <>
+          <NumberInput label="Gündüz birim fiyatı (06-17)" value={dayPrice}
+            setValue={setDayPrice} unit="TL / kWh" />
+          <NumberInput label="Puant birim fiyatı (17-22)" value={peakPrice}
+            setValue={setPeakPrice} unit="TL / kWh" />
+          <NumberInput label="Gece birim fiyatı (22-06)" value={nightPrice}
+            setValue={setNightPrice} unit="TL / kWh" />
+        </>
+      )}
+      {tariff && (
+        <NumberInput label="Şebekeye satış bedeli (satış yoksa 0)" value={sellPrice}
+          setValue={setSellPrice} unit="TL / kWh" />
+      )}
+      {errors.tariff && tariff ? (
+        <Text style={[text.small, { color: colors.critical, marginBottom: spacing.s }]}>
+          {errors.tariff}
+        </Text>
+      ) : null}
       <Text style={text.small}>
-        Çoğu abonelik tek zamanlıdır. Üç zamanlıda gece ucuz, 17-22 arası pahalıdır —
-        emin değilsen faturanda "T1/T2/T3" satırları olup olmadığına bak.
+        Tarife türü ve vergiler dahil birim fiyatlar faturandaki tüketim detayında yer alır.
       </Text>
     </View>,
 
@@ -337,7 +400,7 @@ export default function Onboarding({ userId, onDone }) {
       {catalogError ? (
         <ErrorState
           title="Cihaz listesi yüklenemedi"
-          message="Sunucudan cihaz kataloğu alınamadı. Cihaz seçmeden de devam edebilirsin —
+          message="Cihaz listesi şu anda alınamadı. Cihaz seçmeden de devam edebilirsin;
                    sonradan Ayarlar'dan ekleyebilirsin."
           hint={catalogError}
           onRetry={loadCatalog}
@@ -359,6 +422,62 @@ export default function Onboarding({ userId, onDone }) {
           Hiç cihaz seçmezsen plan boş kalır — en az bir tane seçmeni öneririz.
         </Text>
       )}
+      <Pressable
+        onPress={() => setShowManualDevice(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Kendi cihazını ekle"
+        style={{
+          minHeight: TOUCH, borderRadius: 12, borderWidth: 1,
+          borderColor: colors.amber, alignItems: 'center', justifyContent: 'center',
+          paddingHorizontal: spacing.m, marginTop: spacing.m,
+        }}
+      >
+        <Text style={{ color: colors.amber, fontFamily: font.semibold, fontSize: 14 }}>
+          + Kendi cihazını ekle
+        </Text>
+      </Pressable>
+      {showManualDevice ? (
+        <ManualDeviceForm
+          existingNames={selectedDevices.map((device) => device.name)}
+          onCancel={() => setShowManualDevice(false)}
+          onAdd={(device) => {
+            setSelectedDevices((current) => [...current, device]);
+            setShowManualDevice(false);
+          }}
+        />
+      ) : null}
+      {selectedDevices.length > 0 ? (
+        <View style={{
+          marginTop: spacing.m, paddingTop: spacing.m,
+          borderTopWidth: 1, borderTopColor: colors.line,
+        }}>
+          <Text style={[text.small, { marginBottom: spacing.s }]}>Seçtiğin cihazlar</Text>
+          {selectedDevices.map((device) => (
+            <View key={device.name} style={{
+              paddingVertical: spacing.s, borderBottomWidth: 1, borderBottomColor: colors.line,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.s }}>
+                <Text style={[text.subtitle, { flex: 1 }]}>{device.name}</Text>
+                {device.user_defined ? (
+                  <Pressable
+                    onPress={() => setSelectedDevices((current) =>
+                      current.filter((item) => item.name !== device.name))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${device.name} cihazını kaldır`}
+                    style={{ minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: spacing.s }}
+                  >
+                    <Text style={{ color: colors.critical, fontFamily: font.medium }}>Kaldır</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <DeviceStatusControls
+                device={device}
+                onChange={(patch) => updateSelectedDevice(device.name, patch)}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>,
   ];
 
@@ -385,13 +504,20 @@ export default function Onboarding({ userId, onDone }) {
         }} />
       </View>
 
+      {draftRestored ? (
+        <InlineNotice
+          tone="info"
+          message="Kuruluma kaldığın yerden devam ediyorsun."
+        />
+      ) : null}
+
       <View style={[card, { minHeight: 320 }]}>{steps[step]}</View>
 
       {registerError && (
         <ErrorState
           title="Kurulum tamamlanamadı"
-          message="Sunucuya ulaşılamadı, bu yüzden hesabın oluşturulamadı. Girdiklerin duruyor."
-          hint={`Sunucu adresini kontrol edip tekrar dene. (${registerError})`}
+          message="Kurulum şu anda tamamlanamadı. Girdiklerin duruyor."
+          hint="Bağlantını kontrol edip tekrar dene."
           onRetry={finish}
         />
       )}

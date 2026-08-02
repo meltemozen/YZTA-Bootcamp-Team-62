@@ -1,12 +1,4 @@
-"""Tests for tools/weather.py's live/cached/synthetic branching.
-
-Weather.source is the contract the rest of the product relies on for
-data-quality disclosure (agent system prompt, fallback templates,
-WeatherCheck/ProductionForecast API fields, mobile UI notes) — a cached or
-synthetic response silently mislabeled as "live" would defeat all of that.
-Each test gets an isolated cache file so runs never leak into each other or
-the developer's real weather cache.
-"""
+"""Strict live-weather contract tests."""
 
 from datetime import date
 
@@ -35,58 +27,43 @@ def _open_meteo_body():
     }
 
 
-class _OkResponse:
+class _Response:
+    def __init__(self, body=None):
+        self.body = body or _open_meteo_body()
+
     def raise_for_status(self):
-        pass
+        return None
 
     def json(self):
-        return _open_meteo_body()
+        return self.body
 
 
-def _network_down(*_args, **_kwargs):
-    raise httpx.ConnectError("network down")
-
-
-@pytest.fixture(autouse=True)
-def isolated_cache(tmp_path, monkeypatch):
-    monkeypatch.setattr(weather_module, "_CACHE", str(tmp_path / "cache.json"))
-
-
-def test_live_call_marks_source_live(monkeypatch):
-    monkeypatch.setattr(httpx, "get", lambda *a, **k: _OkResponse())
-
+def test_live_call_returns_complete_forecast(monkeypatch):
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Response())
     result = weather_module.get_weather(LAT, LON, DAY)
-
     assert result.source == "live"
     assert len(result.irradiance_wm2) == 24
 
 
-def test_cache_hit_after_network_failure_marks_source_cached(monkeypatch):
-    monkeypatch.setattr(httpx, "get", lambda *a, **k: _OkResponse())
-    weather_module.get_weather(LAT, LON, DAY)  # populates the cache
+def test_network_failure_does_not_generate_weather(monkeypatch):
+    def network_down(*_args, **_kwargs):
+        raise httpx.ConnectError("network down")
 
-    monkeypatch.setattr(httpx, "get", _network_down)
-    result = weather_module.get_weather(LAT, LON, DAY)
-
-    assert result.source == "cached"
-
-
-def test_network_failure_without_cache_marks_source_synthetic(monkeypatch):
-    monkeypatch.setattr(httpx, "get", _network_down)
-
-    result = weather_module.get_weather(LAT, LON, DAY)
-
-    assert result.source == "synthetic"
-    assert len(result.irradiance_wm2) == 24
+    monkeypatch.setattr(httpx, "get", network_down)
+    with pytest.raises(weather_module.WeatherUnavailableError):
+        weather_module.get_weather(LAT, LON, DAY)
 
 
-def test_production_forecast_carries_weather_source(monkeypatch):
-    """The disclosure has to survive forecast_production() too, since the
-    Today-screen plan reads weather_source off ProductionForecast, not
-    Weather directly."""
-    monkeypatch.setattr(httpx, "get", _network_down)
+def test_incomplete_provider_response_is_rejected(monkeypatch):
+    body = _open_meteo_body()
+    body["hourly"]["cloud_cover"] = [10.0] * 23
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Response(body))
+    with pytest.raises(weather_module.WeatherUnavailableError):
+        weather_module.get_weather(LAT, LON, DAY)
 
+
+def test_production_forecast_carries_live_source(monkeypatch):
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Response())
     weather = weather_module.get_weather(LAT, LON, DAY)
     forecast = production.forecast_production(weather, panel_kw=5.0)
-
-    assert forecast.weather_source == "synthetic"
+    assert forecast.weather_source == "live"

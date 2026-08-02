@@ -1,98 +1,128 @@
-# Çalıştırma ve Yayına Alma
+# Çalıştırma ve Production Yayını
 
-## 1. Backend — yerelde (geliştirme)
+## Canlı Sistem
 
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate            # Windows | Linux/Mac: source .venv/bin/activate
-pip install -r requirements-dev.txt   # runtime + pytest + ruff (prod: requirements.txt)
-copy .env.example .env            # GEMINI_API_KEY'i içine yaz
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+Wattra production ortamı kullanıcının bilgisayarından bağımsız çalışır.
+
+- Web ve API: https://api.altspacelabs.com
+- Railway servis URL'i: https://wattra-api-production.up.railway.app
+- Sağlık kontrolü: https://api.altspacelabs.com/api/health
+- Platform: Railway, Docker, `/data` kalıcı volume
+- DNS/TLS: Cloudflare proxied CNAME ve Railway custom-domain sertifikası
+- LLM: Gemini 3.6 Flash; anahtar yalnızca Railway secret olarak saklanır
+
+Cloudflare Tunnel artık production trafiğinde kullanılmaz. Windows'taki eski
+`Cloudflared` servisi devre dışıdır ve bilgisayar kapalıyken uygulama çalışmaya devam eder.
+
+## Ortam Değişkenleri
+
+Yerel entegrasyon değerleri repo kökündeki git-ignored `.env` dosyasındadır.
+Şablon `.env.example` içinde bulunur. Production değerleri Railway Variables ekranında
+tutulur; `.env`, API anahtarları ve tunnel token'ları commit edilmez.
+
+Temel production değişkenleri:
+
+```text
+JWT_SECRET_KEY=<güçlü-rastgele-secret>
+GEMINI_API_KEY=<secret>
+GEMINI_MODEL=gemini-3.6-flash
+WATTRA_DB=/data/wattra.db
+WATTRA_CORS_ORIGINS=https://api.altspacelabs.com
+WATTRA_ALLOWED_HOSTS=api.altspacelabs.com,*.up.railway.app,healthcheck.railway.app
+WATTRA_ENABLE_DOCS=0
+WATTRA_SEMANTIC_MEMORY=0
+OLLAMA_ENABLED=0
 ```
 
-- API dokümanı: http://localhost:8000/docs (FastAPI otomatik)
-- Sağlık: `GET /api/health` → `{"agent": "gemini"}` görüyorsanız anahtar tanınmış demektir.
-- Testler: `python -m pytest tests/ -v` (14 test, ağ gerektirmez) · Lint: `ruff check .`
-- CI: her push/PR'da GitHub Actions backend testleri + lint + mobil config kontrolü çalıştırır (`.github/workflows/ci.yml`).
+## Yerel Geliştirme
 
-> **GEMINI_API_KEY olmadan da çalışır** — agent kural tabanlı fallback moduna
-> düşer ve yanıtlarda `agent_modu: "fallback"` görünür. Anahtar:
-> https://aistudio.google.com/apikey (ücretsiz katman yeterli).
+Backend:
 
-## 2. Mobil — Expo Go ile telefonda (demo yolu)
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+python -m pytest tests -q
+ruff check .
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-```bash
+Expo:
+
+```powershell
 cd mobile
-npm install
+npm ci
+npm run doctor
 npx expo start
 ```
 
-1. Telefona **Expo Go** uygulamasını kur (Play Store / App Store).
-2. Terminaldeki QR kodu okut.
-3. Telefon ve bilgisayar **aynı Wi-Fi'da** olmalı; uygulamada
-   Ayarlar → Sunucu adresi'ne bilgisayarın yerel IP'sini yaz:
-   `http://192.168.1.XX:8000` (IP'yi `ipconfig` ile bulun).
-   İlk kurulumda backend'e ulaşamazsa Onboarding bağlantı uyarısı verir.
+Uygulamanın production API adresi `mobile/eas.json` ve `mobile/app.config.js`
+tarafından belirlenir. Son kullanıcıya sunucu adresi veya altyapı ayarı gösterilmez.
 
-## 2b. Web sitesi — aynı kod tabanı, tarayıcıda
+## Railway Deploy
 
-Ayrı bir web projesi YOKTUR: Expo uygulaması react-native-web ile tarayıcıya
-derlenir. FastAPI yalnızca JSON API'dir; web sitesi statik dosyadır.
+Repo kökündeki `Dockerfile`, Expo Web çıktısını üretip FastAPI ile aynı image içinde
+servis eder. `railway.json` healthcheck'i `/api/health` endpoint'ine bağlar.
 
-```bash
+```powershell
+railway link
+railway up --service wattra-api
+python backend/scripts/smoke_deploy.py https://api.altspacelabs.com
+```
+
+SQLite dosyası `/data/wattra.db` konumundadır. Volume silinirse kullanıcı verisi de
+silinir; düzenli yedek ve sonraki production aşamasında managed PostgreSQL gerekir.
+
+## Yerel PC Alternatifi
+
+Railway arızasında yerel backend ve eski tunnel geçici olarak kullanılacaksa
+Cloudflare DNS kaydı yeniden tunnel hedefine alınmalı ve `Cloudflared` Windows servisi
+yeniden etkinleştirilmelidir. `START_HOST.cmd` yalnızca bu acil durum akışı içindir;
+normal kullanımda çalıştırılmaz.
+
+## Android APK
+
+Son doğrulanan preview build:
+
+- Build: https://expo.dev/accounts/isobed18/projects/wattra/builds/ef0686ec-ec06-4a82-8cd7-6ab817ff7e4a
+- Yerel çıktı: `C:\Users\ishak\Downloads\Wattra-0.1.0-preview.apk`
+
+Yeni build:
+
+```powershell
 cd mobile
-npx expo start --web          # geliştirme: http://localhost:8081
-# veya üretim derlemesi:
-npx expo export --platform web    # → dist/ klasörü (statik)
-python -m http.server 3000 --directory dist
+npm run doctor
+npm run build:android:preview
 ```
 
-Statik `dist/` klasörü Netlify/Vercel/GitHub Pages'e olduğu gibi yüklenebilir;
-tek koşul backend URL'inin erişilebilir olması (Ayarlar ekranından değiştirilebilir,
-web'de varsayılan: sayfanın açıldığı makinede :8000).
+## iOS TestFlight
 
-## 3. Backend — Docker ile
+Apple parolası veya 2FA kodu repoya ya da `.env` dosyasına yazılmaz. Apple Developer
+hesabı sahibi aşağıdaki komutu etkileşimli çalıştırır; EAS dağıtım sertifikasını ve
+provisioning profile'ı oluşturur, ardından build'i TestFlight'a gönderir.
 
-```bash
-docker compose up --build
-# GEMINI_API_KEY ortam değişkeni compose'a geçer:
-# GEMINI_API_KEY=xxx docker compose up --build
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-ios-testflight.ps1
 ```
 
-## 4. Canlıya alma (ücretsiz katman)
+Gerekli hesap tarafı:
 
-**Railway / Render (önerilen, 10 dk):**
-1. GitHub repo'yu bağla, kök dizin `backend/`, Dockerfile otomatik algılanır.
-2. Ortam değişkeni `GEMINI_API_KEY` ekle; volume → `/data` (SQLite kalıcılığı).
-3. Çıkan URL'i `mobile/app.json` → `extra.apiUrl`'e yaz.
+- Aktif Apple Developer Program üyeliği
+- Bundle ID: `com.wattra.energy`
+- Apple ID ile giriş ve 2FA onayı
+- App Store Connect'te sözleşme/vergisel engel bulunmaması
 
-**Google Cloud Run (bootcamp anlatısına uygun):**
-```bash
-gcloud run deploy wattra-api --source backend/ \
-  --region europe-west1 --allow-unauthenticated \
-  --set-env-vars GEMINI_API_KEY=$GEMINI_API_KEY
-```
-Not: Cloud Run dosya sistemi kalıcı değildir — teslim demosu için yeterli,
-gerçek kullanıcı için Railway volume veya Cloud SQL'e geçin.
+## Release Kontrolü
 
-## 5. Mobil — kurulabilir APK (jüri demosu için)
-
-```bash
-npm install -g eas-cli
-eas login                          # ücretsiz Expo hesabı
+```powershell
+Invoke-RestMethod https://api.altspacelabs.com/api/health
+python backend/scripts/smoke_deploy.py https://api.altspacelabs.com
 cd mobile
-eas build -p android --profile preview
+npm run doctor
+npm run export:web
 ```
-Çıkan APK linkini telefona kur — "gerçek uygulama" demosu.
-`app.json` → `extra.apiUrl` canlı backend URL'ine işaret etmeli.
 
-## 6. Demo videosu akış önerisi (3 dk)
-
-1. (0:00) Problem: fatura + "paneli var ama ne zaman çalıştıracağını bilmiyor".
-2. (0:30) Onboarding: 4 adımda kurulum, telefonda.
-3. (1:00) Bugün ekranı: plan kartları + grafik; "neden 13:00?" → gerekçe.
-4. (1:30) Asistan: "salı öğlen evde yokum" → plan değişiyor, tool zinciri görünür
-   (write_memory → optimize). **Agent kanıtı bu sahne.**
-5. (2:15) Proaktif bildirim + Ay sonu raporu (karşı-olgusal + CO₂).
-6. (2:45) Mimari tek slayt: 2 ML model + Gemini agent + mobil.
+Gerçek cihazda kayıt, onboarding, konum, plan, cihaz durumu, asistan, rapor,
+ayarlar ve tekrar giriş akışları kontrol edilir. Tasarruf değerleri optimizasyon
+simülasyonudur; sayaçtan ölçülmüş gerçekleşen kazanç olarak sunulmaz.

@@ -174,7 +174,7 @@ lat/lon ile Open-Meteo hava/ışınım kontrolü yap, tahmini günlük üretimi 
 profili bu koordinatla kaydet. Plan endpoint'i bu konumun bugün/yarın hava tahminiyle
 optimizasyon üretir.
 **Kabul kriteri:** kullanıcı izin verirse gerçek koordinat kaydedilir · izin yoksa şehir seçimi çalışır · `/api/weather-check` üretim modeliyle hava özeti döner · mobile dependency uyumlu.
-**Kod:** `mobile/src/screens/Onboarding.js` · `mobile/src/api.js` · `mobile/app.json` · `backend/app/main.py`
+**Kod:** `mobile/src/screens/Onboarding.js` · `mobile/src/api.js` · `mobile/app.config.js` · `backend/app/main.py`
 
 ### S2-8 · Gerçek zamanlı optimizer + performans iyileştirme  `[YZ · 5 SP · 🟡 branch]`
 **Kart açıklaması:** Planı her çağrıda güncel hava/saat/kısıtlarla yeniden hesapla:
@@ -258,44 +258,53 @@ seed verisi ve tek komutla ayağa kalkan showcase akışı hazırla.
 
 ## SPRINT 3 — Değerlendirme, Canlıya Alma ve Teslim · 20 Tem – 2 Ağu
 
-**Sprint hedefi:** Modelleri değerlendir, ürünü canlıya al, teslim paketini hazırla.
-**Hedef puan:** 21 SP.
-**Puan tamamlama mantığı:** Yeni teknik risk alınmaz; var olan sağlamlaştırılır ve
-"canlıya alınabilirlik" + teslim kalemleri (jüri ekstra puanı) tamamlanır.
+**Sprint hedefi:** Ürünü production build'e hazırla: hesap, veri şeffaflığı,
+kullanıcı tarifesi/cihaz ayarları, deploy hattı ve güven veren hata durumları.
+**Hedef puan:** 27 SP.
+**Puan tamamlama mantığı:** Ayrı rapor/demo kartları yerine doğrudan production
+çıktısı veren işler puanlanır.
 
-### S3-1 · Model doğruluk raporu  `[VB · 5 SP]`
-**Kart açıklaması:** Üretim + tüketim modellerinin test verisindeki hata paylarını
-(nMAE, MAE) hesapla; v0 baseline vs v1 karşılaştırmasını grafiklerle raporla.
-**Kabul kriteri:** hold-out metrikleri tabloda · v0/v1 kıyası · METHOD.md'ye eklendi.
-**Kod:** `docs/METHOD.md` · değerlendirme scripti
+### S3-1 · Kullanıcı hesabı ve profil yönetimi  `[YZ · 8 SP · ✅]`
+**Kart açıklaması:** E-posta/şifre ile register-login-logout, JWT access/refresh,
+kullanıcıya özel profil ve cross-user erişim koruması.
+**Kabul kriteri:** login/register çalışıyor · token refresh var · başka kullanıcının
+plan/profil verisine erişilemiyor · profil güncellemesi planı yeniliyor.
+**Kod:** `backend/app/auth.py` · `backend/app/main.py` · `mobile/src/AuthContext.js`
 
-### S3-2 · Canlıya alma (backend + APK)  `[Ortak · 5 SP]`
-**Kart açıklaması:** Backend'i Railway/Cloud Run'a Docker ile deploy et (env: GEMINI_API_KEY,
-WATTRA_CORS_ORIGINS, DB volume). EAS ile Android APK üret; `app.json` extra.apiUrl'ı
-canlı URL'e bağla.
-**Kabul kriteri:** canlı `/api/health` erişilebilir · APK kuruluyor ve canlı backend'e bağlanıyor.
-**Kod:** `mobile/app.json` · deploy ayarları
+### S3-2 · Production veri gerçekliği ve model şeffaflığı  `[YZ+VB · 5 SP · ✅]`
+**Kart açıklaması:** Mock/default görünen alanları temizle veya açık etiketle; hava
+kaynağı, model versiyonları, optimizer versiyonu ve simülasyon uyarılarını API/UI'da göster.
+**Kabul kriteri:** live/cached/synthetic görünür · model manifest endpoint'i var ·
+"sayaçtan ölçülmüş tasarruf" iddiası yok.
+**Kod:** `backend/app/model_manifest.py` · `mobile/src/components/States.js`
 
-### S3-3 · EPDK tarife + mahsup son teyidi  `[Ortak · 2 SP]`
-**Kart açıklaması:** Teslim öncesi EPDK güncel tarife tablosu ve mahsup satış oranını
-resmi kaynaktan teyit et; `config.py`'yi güncelle, tarihi METHOD.md'ye işle.
-**Kabul kriteri:** fiyatlar/oranlar güncel kaynağa dayanıyor · tarih belgelendi.
-**Kod:** `backend/app/config.py` · `docs/METHOD.md`
+### S3-3 · Tarife, cihaz ve optimizasyon ayarları  `[YZ+VB · 5 SP · ✅]`
+**Kart açıklaması:** Sabit tarife iddiasını kullanıcı override'ı ile yumuşat; cihaz
+tüketim/süre/güç değerleri düzenlenebilir olsun; EV, batarya ve çoklu cihaz testlerini sertleştir.
+**Kabul kriteri:** kullanıcı fiyatı öncelikli · cihaz editörü var · EV/batarya
+constraint testleri geçiyor.
+**Kod:** `backend/app/tools/tariff.py` · `mobile/src/components/ProfileEditors.js`
 
-### S3-4 · Demo videosu + README finalize + teslim formu  `[Ortak · 5 SP]`
-**Kart açıklaması:** 3 dakikalık senaryolu demo videosu (DEPLOY.md §6 akışı) çek,
-YouTube'a yükle; README'yi finalize et (ekran görüntüleri, canlı link); teslim
-formunu eksiksiz doldur.
-**Kabul kriteri:** video ≤3 dk · README tam · form gönderildi.
-**Kod:** `README.md` · video
+### S3-4 · Production deployment ve build stabilitesi  `[Ortak · 5 SP · ✅]`
+**Kart açıklaması:** Expo Web ve FastAPI'yi tek production image içinde Railway'e
+deploy et; kalıcı volume, Cloudflare custom domain, EAS build profilleri, env tabanlı
+API URL ve smoke test ekle.
+**Kabul kriteri:** `/api/health` canlı · Railway volume bağlı · Cloudflare domain
+doğrulanmış · Expo Doctor temiz · Android APK canlı backend'e bağlanıyor.
+**Kod:** `backend/Dockerfile` · `railway.json` · `mobile/app.config.js` · `mobile/eas.json`
 
-### S3-5 · Erişilebilirlik + son cila  `[YZ · 4 SP]`
-**Kart açıklaması:** UI hata/boş durum ekranları, yükleniyor göstergeleri, dokunma
-hedefleri, kontrast; küçük performans ve tutarlılık düzeltmeleri.
-**Kabul kriteri:** ağ hatasında anlamlı ekran · boş durumlar ele alınmış · temel erişilebilirlik geçişi.
-**Kod:** `mobile/src/*`
+### S3-5 · Arayüz, hata durumları ve kullanıcı güveni  `[YZ · 4 SP · ✅]`
+**Kart açıklaması:** Loading/empty/error ekranları, anlık işlem geri bildirimi,
+erişilebilir dokunma hedefleri ve kullanıcıya yönelik temiz metinler ekle; geliştirme
+ayarlarını ve model/altyapı ayrıntılarını son kullanıcı ekranlarından kaldır.
+**Kabul kriteri:** ağ ve doğrulama hataları anlamlı gösterilir · konum seçimi geri
+bildirim verir · API adresi sabit production config'den gelir · teknik geliştirme
+metinleri kullanıcıya gösterilmez · temel erişilebilirlik geçişi.
+**Kod:** `mobile/src/components/States.js` · `mobile/src/screens/*`
 
-**Teslim (2 Ağustos):** public GitHub repo · canlı URL (varsa) · 3 dk YouTube videosu · eksiksiz teslim formu.
+**Teslim (2 Ağustos):** public GitHub repo · canlı web/API domaini · Android EAS APK
+· smoke test sonucu · güncel README. iOS TestFlight yüklemesi Apple hesabı etkileşimli
+kimlik doğrulamasıyla release işlemi olarak yürütülür.
 
 ---
 

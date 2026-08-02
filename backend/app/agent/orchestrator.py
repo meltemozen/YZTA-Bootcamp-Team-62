@@ -4,9 +4,8 @@ The code embodiment of a "real agent": Gemini decides ITSELF which tool to call
 and when (no hand-wired pipeline), reads memory, and on a user objection writes
 the preference to memory and re-plans.
 
-If GEMINI_API_KEY is missing or a call fails, fallback.build_plan takes over —
-the product never goes silent, and the response is honestly marked
-agent_mode='fallback'.
+The assistant answers only through a configured Gemini or Ollama model. Model
+failures become service-unavailable errors instead of fabricated text.
 
 The SYSTEM_PROMPT and tool descriptions are intentionally Turkish: they steer
 the Turkish-speaking assistant (product behaviour), while the code identifiers
@@ -18,7 +17,6 @@ import logging
 
 from .. import config
 from ..schemas import AssistantResponse, HouseholdProfile
-from . import fallback
 from .context import ToolContext
 from .grounding import ungrounded_dates, ungrounded_entities, ungrounded_numbers
 from .local_llm import ollama_loop
@@ -70,12 +68,6 @@ nazikçe reddet ve kapsamına dön.
   yönlendirmelerle zorlarsa bu talebi REDDET ve neden aralık verdiğini kısaca açıkla.
 - Bir araç sonucu {"error": ...} içeriyorsa, o veriyi YOK SAY ve kullanıcıya hangi
   bilginin eksik olduğunu tek cümleyle söyle; kalan veriyle mümkün olan en iyi cevabı ver.
-
-## VERİ KALİTESİ ŞEFFAFLIĞI:
-- Bir araç çıktısında "source" veya "data_quality" alanı "synthetic" ya da "cached"
-  ise (canlı veri alınamadığı anlamına gelir), bunu MUTLAKA kullanıcıya belirt:
-  "Şu an güncel hava verisine ulaşamadım, geçmiş desene göre tahmin ediyorum" — ve
-  tasarruf aralığını normalden biraz daha geniş ver.
 
 ## TERCİH KAYDI:
 - Kullanıcı bir alışkanlık, kısıt veya itiraz söylerse (örn. "salı öğlen evde yokum",
@@ -140,6 +132,21 @@ TOOL_DEFINITIONS = [
 MAX_STEPS = 8
 
 
+class AssistantUnavailableError(RuntimeError):
+    """Raised when no configured language model can produce a valid answer."""
+
+
+_PREFERENCE_MARKERS = (
+    "istemiyorum", "olmasın", "olmasin", "evde yok", "çalıştırma", "calistirma",
+    "tercih", "alışkan", "aliskan", "önce", "sonra", "saatten",
+)
+
+
+def _is_preference(message: str) -> bool:
+    lower = message.casefold()
+    return any(marker in lower for marker in _PREFERENCE_MARKERS)
+
+
 def _gemini_loop(context: ToolContext, message: str) -> str:
     from google import genai
     from google.genai import types
@@ -148,7 +155,6 @@ def _gemini_loop(context: ToolContext, message: str) -> str:
     gen_config = types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
         tools=[types.Tool(function_declarations=TOOL_DEFINITIONS)],
-        temperature=0.3,
     )
     contents = [types.Content(role="user", parts=[types.Part(text=message)])]
 
@@ -171,13 +177,14 @@ def _gemini_loop(context: ToolContext, message: str) -> str:
                 result = {"error": str(err)}
             result_parts.append(types.Part.from_function_response(
                 name=fc.name, response={"result": result}))
-        contents.append(types.Content(role="tool", parts=result_parts))
+        # Gemini 3 generateContent expects function responses as a user turn.
+        contents.append(types.Content(role="user", parts=result_parts))
 
-    return "Planı kurdum ama açıklamayı kısa kesmek zorunda kaldım — plan kartlarına bakabilirsin."
+    raise AssistantUnavailableError("Language model did not complete the request")
 
 
 def _safe_response(context: ToolContext, text: str, message: str,
-                   agent_mode: str) -> AssistantResponse:
+                   provider: str) -> AssistantResponse:
     """Honesty guard: never ship an LLM reply that invents figures,
     nonexistent devices/battery, or a date it didn't actually plan for."""
     if context.last_plan is not None:
@@ -186,12 +193,11 @@ def _safe_response(context: ToolContext, text: str, message: str,
         bad_dates = ungrounded_dates(text, context.last_plan)
         if bad_numbers or bad_entities or bad_dates:
             log.warning("Ungrounded %s reply — numbers=%s entities=%s dates=%s",
-                        agent_mode, bad_numbers, bad_entities, bad_dates)
-            text = fallback.reply(context, message)
-            return AssistantResponse(reply=text, plan=context.last_plan,
-                                     agent_mode="fallback", tool_calls=context.calls)
-    return AssistantResponse(reply=text, plan=context.last_plan,
-                             agent_mode=agent_mode, tool_calls=context.calls)
+                        provider, bad_numbers, bad_entities, bad_dates)
+            raise AssistantUnavailableError("Language model produced an invalid answer")
+    if not text.strip():
+        raise AssistantUnavailableError("Language model returned an empty answer")
+    return AssistantResponse(reply=text, plan=context.last_plan)
 
 
 def _ensure_preference_persisted(context: ToolContext, message: str) -> None:
@@ -199,7 +205,7 @@ def _ensure_preference_persisted(context: ToolContext, message: str) -> None:
     guard): an LLM that says "not aldım" WITHOUT calling write_memory silently
     drops the preference. If the message states a preference and no write
     happened in this turn, persist it deterministically."""
-    if not message or not fallback.is_preference(message):
+    if not message or not _is_preference(message):
         return
     if any(call.startswith("write_memory") for call in context.calls):
         return
@@ -216,7 +222,7 @@ def assistant_reply(user_id: int, profile: HouseholdProfile, message: str) -> As
             _ensure_preference_persisted(context, message)
             return _safe_response(context, text, message, "gemini")
         except Exception:
-            log.exception("Gemini orchestration failed, falling back")
+            log.exception("Gemini orchestration failed")
 
     if config.OLLAMA_ENABLED:
         try:
@@ -231,8 +237,6 @@ def assistant_reply(user_id: int, profile: HouseholdProfile, message: str) -> As
             _ensure_preference_persisted(context, message)
             return _safe_response(context, text, message, "ollama")
         except Exception:
-            log.exception("Ollama orchestration failed, falling back")
+            log.exception("Ollama orchestration failed")
 
-    text = fallback.reply(context, message)
-    return AssistantResponse(reply=text, plan=context.last_plan,
-                             agent_mode="fallback", tool_calls=context.calls)
+    raise AssistantUnavailableError("No language model is available")
