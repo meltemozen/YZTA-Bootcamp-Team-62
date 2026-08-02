@@ -122,7 +122,15 @@ export default function Profile({ onBack }) {
       style={{ flex: 1, backgroundColor: colors.page }}
       contentContainerStyle={{ padding: spacing.m, paddingTop: 56 }}
     >
-      <ScreenHeader title="Profilim" />
+      <ScreenHeader title="Profilim" right={
+        onBack ? (
+          <Pressable onPress={onBack} style={{ padding: 4 }}>
+            <Text style={{ color: colors.amber, fontFamily: font.medium, fontSize: 15 }}>
+              Geri
+            </Text>
+          </Pressable>
+        ) : null
+      } />
 
       {profileLoading ? <LoadingState label="Profil yükleniyor…" /> : null}
       {profileError ? (
