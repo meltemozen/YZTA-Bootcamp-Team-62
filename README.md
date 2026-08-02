@@ -192,16 +192,13 @@ _Tüketim Modeli (v0 → v1):_
 </details>
 
 <details open>
-<summary><h2>Sprint 3 (20 Temmuz – 2 Ağustos) · 27 SP </h2></summary>
+<summary><h2>Sprint 3 (20 Temmuz – 2 Ağustos) · 21 SP </h2></summary>
 
-**Sprint Notları:** Bu sprint'te ürünleşme ve canlıya alma çalışmalarına odaklanıldı.
-Kayıt/giriş, kullanıcıya özel profil, konum, tarife ve cihaz yönetimi tamamlandı;
-uygulama Expo SDK 57'ye geçirildi ve production altyapısı kuruldu.
+**Sprint Notları:** Bu sprint'te projenin tam anlamıyla "ürünleşme" ve "şeffaflık" adımlarına odaklanıldı. Kullanıcıların tamamen kendilerine ait bir deneyim yaşaması için giriş/kayıt (Authentication) sistemi entegre edildi. Son olarak arayüzde (UI) yükleniyor, boş ve hata durumları eklenerek uygulamanın kararlılığı cilalandı.
 
-**Tamamlanan Puan:** Sprint 3 için planlanan 27 puanın tamamı tamamlandı.
+**Tamamlanan Puan:** Sprint 3 için 21 puanlık iş yapılacağı belirlenmiştir ve 21 puanlık iş tamamlanmıştır.
 
-**Tahmin Mantığı:** Ayrı rapor ve teslim kartları yerine doğrudan production çıktısı
-veren beş genel görev puanlandı. Alt işler bu görevlerin kabul kriterleri altında yürütüldü.
+**Tahmin Mantığı:** Yapılacak taskların her biri zorluk, öncelik ve yapılma süresine bağlı olarak puanlandırılmıştır. Sprint 3 için 21 puan planlanmış ve 21 puan tamamlanmıştır. Sprint 3'te daha çok projenin kullanıcı arayüzünün iyileştirilmesi ve agent'ın test edilmesi hedeflenmiştir. Bu nedenle diğer sprintlere göre daha az puan verilmiştir.
 
 **Daily Scrum:** WhatsApp üzerinden günlük senkronizasyon sağlandı. Toplantılar Slack Huddle üzerinden yapıldı.
 
@@ -215,26 +212,30 @@ veren beş genel görev puanlandı. Alt işler bu görevlerin kabul kriterleri a
 
 ![Sprint 3 Burndown Chart](docs/gorseller/sprint3_burndownChart.png)
 
-**Sprint Review:** Kayıt/giriş ve kullanıcıya özel profil akışı tamamlandı; konum,
-cihaz ve tarife ayarları gerçek kullanıcı girdilerine bağlandı. Expo SDK 57 geçişi,
-Railway deployment, kalıcı volume, Cloudflare custom domain, Gemini 3.6 Flash ve
-Android EAS APK build doğrulandı. Backend testleri, Expo Doctor ve canlı web smoke
-testi başarıyla geçti.
+**Ürün Ekran Görüntüleri**
 
-**Sprint Retrospective:** Yapay zeka ve veri bilimi ekiplerinin eşzamanlı çalışması
-önceki sprintlere göre daha koordineli yürütüldü. Canlı deployment ve gerçek cihaz
-build doğrulamalarına sprintin başında başlanmasının önemi görüldü.
-
-| # | Görev | Ekip | SP | Durum |
+| Asistan | Rapor | Bugün | Yarın | Ayarlar |
 |---|---|---|---|---|
-| S3-1 | Kullanıcı hesabı ve profil yönetimi | YZ | 8 | ✅ |
-| S3-2 | Production veri gerçekliği ve model şeffaflığı | YZ+VB | 5 | ✅ |
-| S3-3 | Tarife, cihaz ve optimizasyon ayarları | YZ+VB | 5 | ✅ |
-| S3-4 | Production deployment ve build stabilitesi | Ortak | 5 | ✅ |
-| S3-5 | Arayüz, hata durumları ve kullanıcı güveni | YZ | 4 | ✅ |
 
-**Teslim (2 Ağustos):** public GitHub repo, canlı API/domain, EAS build çıktısı,
-smoke test sonucu ve güncel README.
+
+
+**Sprint Review:** Bu sprint'te projeyi bir prototipten ürüne dönüştürmek hedeflendi. JWT tabanlı çoklu oturum (Auth) sistemi başarıyla entegre edilerek kullanıcı verileri güvenle izole edildi. Model şeffaflığını sağlamak adına eğitim verileri (EPİAŞ) ve sabit EPDK tarifeleri `manifest.json` dosyası ve şeffaf UI uyarılarıyla (live/cached) görünür kılındı. Ayrıca, uç durumlardaki hatalar iyileştirilip tasarruf hesaplamaları çok daha dürüst bir dille ("Uygulanan - tahmini") anlatılarak kullanıcı deneyimi profesyonelleştirildi.
+
+**Production Teslim Notu:** Expo SDK 57 geçişi tamamlandı. Expo Web ve FastAPI,
+kalıcı volume ile Railway üzerinde yayınlandı; `api.altspacelabs.com` Cloudflare
+üzerinden bağlandı. Gemini 3.6 Flash, Android EAS APK, backend testleri, Expo Doctor
+ve canlı smoke testi doğrulandı.
+
+**Sprint Retrospective:** Bu sprint, görev dağılımının ve ekip içi iletişimin en verimli ilerlediği süreç oldu. yapay zeka ve veri bilimi ekiplerinin eşzamanlı çalışmaları çok daha koordine yürütüldü. Saatlik mahsuplaşma problemine donanım gerektirmeyen, tamamen çalışan ve değer üreten bir ürün ortaya koymuş olmanın gururuyla Bootcamp süreci başarıyla tamamlandı.
+
+| # | Görev | Ekip | SP |
+|---|---|---|---|
+| S3-1 | Production Veri Gerçekliği ve Model Şeffaflığı | Ortak | 5 |
+| S3-2 | Canlıya alma: Railway/Cloud Run backend + EAS ile Android APK | YZ | 5 |
+| S3-3 | Login/Register/Logout/User Profile Ekranları| Ortak | 4 |
+| S3-4 | 3 dk demo videosu + README finalize + teslim formu | Ortak | 3 |
+| S3-5 | Arayüz (UI) İyileştirmeleri ve Hata Ekranları (Son Cila) | Ortak | 4 |
+
 
 </details>
 
